@@ -4,7 +4,7 @@ pydantic==2.4.2
 email-validator==2.1.0.post1
 pydantic-settings==2.0.3
 psycopg[binary,pool]==3.1.12
-redis[hiredis]==5.0.1
+redis[hiredis]==7.0.1
 structlog==23.1.0
 httpx==0.24.1
 aio-pika==9.2.2
