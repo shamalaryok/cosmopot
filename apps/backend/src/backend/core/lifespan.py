@@ -28,7 +28,7 @@ def create_lifespan(settings: Settings) -> Lifespan[FastAPI]:
         app.state.task_broadcaster = TaskStatusBroadcaster(redis)
         app.state.rate_limiter = RateLimiter(
             redis,
-            limit=settings.rate_limit.requests_per_minute,
+            limit=settings.rate_limit.global_requests_per_minute,
             window_seconds=settings.rate_limit.window_seconds,
         )
 

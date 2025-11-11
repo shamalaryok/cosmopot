@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Literal
 
-import redis.asyncio as redis
+from redis.asyncio import Redis
 import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
@@ -48,24 +48,36 @@ class DetailedHealthResponse(HealthResponse):
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
 
-def _build_health_response(settings: Settings) -> HealthResponse:
+DependencyStatusPayload = dict[str, object]
+HealthPayload = dict[str, object]
+
+
+def _dependency_status(
+    status: Literal["ok", "error"], error: str | None = None
+) -> DependencyStatusPayload:
+    payload: DependencyStatusPayload = {"status": status, "error": error}
+    return payload
+
+
+def _build_health_response(settings: Settings) -> HealthPayload:
     metrics_endpoint = (
         settings.prometheus.metrics_path if settings.prometheus.enabled else None
     )
-    return HealthResponse(
-        status="ok",
-        service=settings.project_name,
-        version=settings.project_version,
-        timestamp=datetime.now(UTC),
-        environment=settings.environment.value,
-        metrics_enabled=settings.prometheus.enabled,
-        metrics_endpoint=metrics_endpoint,
-        error_tracking_enabled=settings.sentry.enabled,
-    )
+    payload: HealthPayload = {
+        "status": "ok",
+        "service": settings.project_name,
+        "version": settings.project_version,
+        "timestamp": datetime.now(UTC),
+        "environment": settings.environment.value,
+        "metrics_enabled": settings.prometheus.enabled,
+        "metrics_endpoint": metrics_endpoint,
+        "error_tracking_enabled": settings.sentry.enabled,
+    }
+    return payload
 
 
 @router.get("", summary="Service health check", response_model=HealthResponse)
-async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
+async def health(settings: Settings = Depends(get_settings)) -> dict[str, object]:
     """Return a lightweight health payload for readiness probes."""
 
     add_breadcrumb(
@@ -75,7 +87,7 @@ async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     )
 
     payload = _build_health_response(settings)
-    logger.debug("health_status", **payload.model_dump(mode="json", exclude_none=True))
+    logger.debug("health_status", **{k: v for k, v in payload.items() if v is not None})
     return payload
 
 
@@ -86,7 +98,7 @@ async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
 )
 async def detailed_health(
     settings: Settings = Depends(get_settings),
-) -> DetailedHealthResponse:
+) -> dict[str, object]:
     """Return detailed health status including dependency checks."""
 
     add_breadcrumb(
@@ -95,23 +107,24 @@ async def detailed_health(
         level="info",
     )
 
-    base_payload = _build_health_response(settings)
-    payload = DetailedHealthResponse(**base_payload.model_dump())
+    payload: dict[str, object] = _build_health_response(settings).copy()
+    payload["redis"] = None
+    payload["database"] = None
 
     try:
-        redis_client = redis.from_url(settings.redis.url, decode_responses=False)
+        redis_client = Redis.from_url(settings.redis.url, decode_responses=False)
     except Exception as exc:  # pragma: no cover - defensive
-        payload.redis = DependencyStatus(status="error", error=str(exc))
+        payload["redis"] = _dependency_status("error", str(exc))
         logger.error("redis_health_check_failed", error=str(exc))
     else:
         try:
             await redis_client.ping()
-            payload.redis = DependencyStatus(status="ok")
+            payload["redis"] = _dependency_status("ok")
         except Exception as exc:  # pragma: no cover - defensive
-            payload.redis = DependencyStatus(status="error", error=str(exc))
+            payload["redis"] = _dependency_status("error", str(exc))
             logger.error("redis_health_check_failed", error=str(exc))
         finally:
             await redis_client.close()
 
-    payload.database = DependencyStatus(status="ok")
+    payload["database"] = _dependency_status("ok")
     return payload

@@ -1,18 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable
 from urllib.parse import urlparse
 
 from redis.asyncio import Redis
 
 from backend.core.config import Settings, get_settings
 
-if TYPE_CHECKING:
-    pass
-
-
-FakeRedisFactory: Callable[..., Redis] | None = None
+FakeRedisFactory: type[Redis] | None = None
 
 try:  # pragma: no cover - optional dependency in production
     from fakeredis.aioredis import FakeRedis as _FakeRedis
@@ -46,9 +41,9 @@ async def init_redis(settings: Settings | None = None) -> Redis:
     else:
         _REDIS = Redis.from_url(url, encoding="utf-8", decode_responses=True)
 
-    ping_result = _REDIS.ping()
+    ping_result: bool | Awaitable[bool] = _REDIS.ping()
     if isinstance(ping_result, Awaitable):
-        ping_value = await ping_result
+        ping_value: bool = await ping_result
     else:
         ping_value = ping_result
 

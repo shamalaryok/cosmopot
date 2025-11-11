@@ -43,7 +43,7 @@ JSONDict: TypeAlias = dict[str, Any]
 
 BIGINT_PK = BigInteger().with_variant(Integer, "sqlite")
 
-metadata: ClassVar[MetaData] = MetaData(
+metadata = MetaData(
     naming_convention={
         "ix": "ix_%(column_0_label)s",
         "uq": "uq_%(table_name)s_%(column_0_name)s",

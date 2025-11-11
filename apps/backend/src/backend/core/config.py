@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import quote_plus
 
 from pydantic import (
@@ -54,6 +54,10 @@ class DatabaseSettings(BaseModel):
     name: str = SERVICE_NAME
     echo: bool = False
 
+    if TYPE_CHECKING:
+        dsn: str
+        async_fallback_dsn: str
+
     def _build_dsn(self) -> str:
         if self.url is not None:
             return str(self.url)
@@ -65,13 +69,11 @@ class DatabaseSettings(BaseModel):
         )
 
     @computed_field
-    @property
     def dsn(self) -> str:
         """Assemble the SQLAlchemy async DSN."""
         return self._build_dsn()
 
     @computed_field
-    @property
     def async_fallback_dsn(self) -> str:
         """Alias retained for external tooling expecting `async_fallback_dsn`."""
         return self._build_dsn()
@@ -653,18 +655,20 @@ class Settings(BaseSettings):
 
         return self
 
+    if TYPE_CHECKING:
+        is_development: bool
+        is_testing: bool
+        is_production: bool
+
     @computed_field
-    @property
     def is_development(self) -> bool:
         return self.environment is Environment.DEVELOPMENT
 
     @computed_field
-    @property
     def is_testing(self) -> bool:
         return self.environment is Environment.TEST
 
     @computed_field
-    @property
     def is_production(self) -> bool:
         return self.environment is Environment.PRODUCTION
 

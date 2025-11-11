@@ -19,8 +19,9 @@ def get_engine(settings: Settings | None = None) -> AsyncEngine:
     global _ENGINE
     if _ENGINE is None:
         settings = settings or get_settings()
+        dsn: str = settings.database.dsn
         _ENGINE = create_async_engine(
-            settings.database.dsn,
+            dsn,
             echo=settings.database.echo,
             pool_pre_ping=True,
         )
