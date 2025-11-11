@@ -49,7 +49,12 @@ def upgrade() -> None:
     # Create referrals table
     op.create_table(
         "referrals",
-        sa.Column("id", uuid_type, primary_key=True, default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            uuid_type,
+            primary_key=True,
+            default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("referrer_id", uuid_type, nullable=False),
         sa.Column("referred_user_id", uuid_type, nullable=False),
         sa.Column("referral_code", sa.String(length=32), nullable=False),
@@ -75,14 +80,31 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("referrer_id", "referred_user_id", name="uq_referrals_pair"),
     )
-    op.create_index("ix_referrals_referrer_id", "referrals", ["referrer_id"])
-    op.create_index("ix_referrals_referred_user_id", "referrals", ["referred_user_id"])
-    op.create_index("ix_referrals_referral_code", "referrals", ["referral_code"])
+    op.create_index(
+        "ix_referrals_referrer_id",
+        "referrals",
+        ["referrer_id"],
+    )
+    op.create_index(
+        "ix_referrals_referred_user_id",
+        "referrals",
+        ["referred_user_id"],
+    )
+    op.create_index(
+        "ix_referrals_referral_code",
+        "referrals",
+        ["referral_code"],
+    )
 
     # Create referral_earnings table
     op.create_table(
         "referral_earnings",
-        sa.Column("id", uuid_type, primary_key=True, default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            uuid_type,
+            primary_key=True,
+            default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("referral_id", uuid_type, nullable=False),
         sa.Column("user_id", uuid_type, nullable=False),
         sa.Column("payment_id", uuid_type, nullable=False),

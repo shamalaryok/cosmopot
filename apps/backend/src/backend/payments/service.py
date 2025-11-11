@@ -470,7 +470,10 @@ class PaymentService:
         success_url: str,
         cancel_url: str | None,
     ) -> ProviderPayload:
-        """Build provider-specific payment payload. See types.ProviderPayload for structure."""
+        """Build provider-specific payment payload.
+
+        See types.ProviderPayload for structure.
+        """
         if provider == PaymentProvider.YOOKASSA:
             return self._build_yookassa_payload(
                 amount=amount,
@@ -504,7 +507,10 @@ class PaymentService:
         success_url: str,
         cancel_url: str | None,
     ) -> YooKassaPaymentPayload:
-        """Build YooKassa payment payload. See types.YooKassaPaymentPayload for structure."""
+        """Build YooKassa payment payload.
+
+        See types.YooKassaPaymentPayload for structure.
+        """
         payload: YooKassaPaymentPayload = {
             "amount": {"value": f"{amount:.2f}", "currency": currency},
             "capture": True,
@@ -532,7 +538,10 @@ class PaymentService:
         success_url: str,
         cancel_url: str | None,
     ) -> StripePaymentPayload:
-        """Build Stripe payment payload. See types.StripePaymentPayload for structure."""
+        """Build Stripe payment payload.
+
+        See types.StripePaymentPayload for structure.
+        """
         amount_cents = int(amount * 100)
         payload: StripePaymentPayload = {
             "amount": amount_cents,

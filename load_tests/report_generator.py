@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +84,38 @@ class LoadTestReportGenerator:
 
         overall_pass = auth_pass and gen_pass and payment_pass
 
+        status_badge_class = "status-pass" if overall_pass else "status-fail"
+        overall_status_label = "✓ PASS" if overall_pass else "✗ FAIL"
+        auth_status_class = "success" if auth_pass else "error"
+        auth_status_symbol = "✓" if auth_pass else "✗"
+        gen_status_class = "success" if gen_pass else "error"
+        gen_status_symbol = "✓" if gen_pass else "✗"
+        generation_latency_pass = (
+            generation_metrics.get("p95_response_time_ms", float("inf")) <= 500
+        )
+        generation_latency_class = (
+            "success" if generation_latency_pass else "error"
+        )
+        generation_latency_symbol = "✓" if generation_latency_pass else "✗"
+        payments_status_class = "success" if payment_pass else "error"
+        payments_status_symbol = "✓" if payment_pass else "✗"
+
+        auth_section = LoadTestReportGenerator._generate_section(
+            "Authentication API",
+            auth_metrics,
+            "auth",
+        )
+        generation_section = LoadTestReportGenerator._generate_section(
+            "Generation API",
+            generation_metrics,
+            "generation",
+        )
+        payments_section = LoadTestReportGenerator._generate_section(
+            "Payments API",
+            payments_metrics,
+            "payments",
+        )
+
         html = f"""
         <!DOCTYPE html>
         <html lang="en">
@@ -99,7 +130,8 @@ class LoadTestReportGenerator:
                     box-sizing: border-box;
                 }}
                 body {{
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                        Roboto, "Helvetica Neue", Arial, sans-serif;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     min-height: 100vh;
                     padding: 40px 20px;
@@ -236,8 +268,8 @@ class LoadTestReportGenerator:
                     <h1>🚀 Load Testing Report</h1>
                     <p>Performance Analysis - Auth, Generation & Payments APIs</p>
                     <div class="overall-status">
-                        <div class="status-badge {'status-pass' if overall_pass else 'status-fail'}">
-                            Overall: {'✓ PASS' if overall_pass else '✗ FAIL'}
+                        <div class="status-badge {status_badge_class}">
+                            Overall: {overall_status_label}
                         </div>
                     </div>
                 </div>
@@ -247,9 +279,9 @@ class LoadTestReportGenerator:
                         <strong>Generated:</strong> {timestamp}
                     </p>
 
-                    {LoadTestReportGenerator._generate_section('Authentication API', auth_metrics, 'auth')}
-                    {LoadTestReportGenerator._generate_section('Generation API', generation_metrics, 'generation')}
-                    {LoadTestReportGenerator._generate_section('Payments API', payments_metrics, 'payments')}
+                    {auth_section}
+                    {generation_section}
+                    {payments_section}
 
                     <div class="section">
                         <h2 class="section-title">📋 Acceptance Criteria</h2>
@@ -267,25 +299,25 @@ class LoadTestReportGenerator:
                                     <td>Auth Success Rate</td>
                                     <td>≥ 99%</td>
                                     <td>{auth_metrics.get('success_rate', 0):.2f}%</td>
-                                    <td class="{'success' if auth_pass else 'error'}">{'✓' if auth_pass else '✗'}</td>
+                                    <td class="{auth_status_class}">{auth_status_symbol}</td>
                                 </tr>
                                 <tr>
                                     <td>Generation Success Rate</td>
                                     <td>≥ 95%</td>
                                     <td>{generation_metrics.get('success_rate', 0):.2f}%</td>
-                                    <td class="{'success' if gen_pass else 'error'}">{'✓' if gen_pass else '✗'}</td>
+                                    <td class="{gen_status_class}">{gen_status_symbol}</td>
                                 </tr>
                                 <tr>
                                     <td>Generation P95 Latency</td>
                                     <td>≤ 500ms</td>
                                     <td>{generation_metrics.get('p95_response_time_ms', 0):.2f}ms</td>
-                                    <td class="{'success' if generation_metrics.get('p95_response_time_ms', float('inf')) <= 500 else 'error'}">{'✓' if generation_metrics.get('p95_response_time_ms', float('inf')) <= 500 else '✗'}</td>
+                                    <td class="{generation_latency_class}">{generation_latency_symbol}</td>
                                 </tr>
                                 <tr>
                                     <td>Payments Success Rate</td>
                                     <td>≥ 95%</td>
                                     <td>{payments_metrics.get('success_rate', 0):.2f}%</td>
-                                    <td class="{'success' if payment_pass else 'error'}">{'✓' if payment_pass else '✗'}</td>
+                                    <td class="{payments_status_class}">{payments_status_symbol}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -318,49 +350,83 @@ class LoadTestReportGenerator:
         if not metrics:
             return ""
 
+        total_requests = metrics.get("total_requests", 0)
+        success_rate = metrics.get("success_rate", 0)
+        success_rate_class = "success" if success_rate >= 95 else "warning"
+        error_rate = metrics.get("error_rate", 0)
+        error_rate_class = "success" if error_rate < 5 else "error"
+        avg_response = metrics.get("avg_response_time_ms", 0)
+        p95_response = metrics.get("p95_response_time_ms", 0)
+        p99_response = metrics.get("p99_response_time_ms", 0)
+        min_response = metrics.get("min_response_time_ms", 0)
+        max_response = metrics.get("max_response_time_ms", 0)
+        test_duration = metrics.get("test_duration_seconds", 0)
+
         return f"""
             <div class="section">
                 <h2 class="section-title">{title}</h2>
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-label">Total Requests</div>
-                        <div class="metric-value">{metrics.get('total_requests', 0)}</div>
+                        <div class="metric-value">{total_requests}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Success Rate</div>
                         <div class="metric-value">
-                            <span class="{'success' if metrics.get('success_rate', 0) >= 95 else 'warning'}">{metrics.get('success_rate', 0):.2f}%</span>
+                            <span class="{success_rate_class}">
+                                {success_rate:.2f}%
+                            </span>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Error Rate</div>
                         <div class="metric-value">
-                            <span class="{'success' if metrics.get('error_rate', 0) < 5 else 'error'}">{metrics.get('error_rate', 0):.2f}%</span>
+                            <span class="{error_rate_class}">
+                                {error_rate:.2f}%
+                            </span>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Avg Response Time</div>
-                        <div class="metric-value">{metrics.get('avg_response_time_ms', 0):.2f}<span class="metric-unit">ms</span></div>
+                        <div class="metric-value">
+                            {avg_response:.2f}
+                            <span class="metric-unit">ms</span>
+                        </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">P95 Response Time</div>
-                        <div class="metric-value">{metrics.get('p95_response_time_ms', 0):.2f}<span class="metric-unit">ms</span></div>
+                        <div class="metric-value">
+                            {p95_response:.2f}
+                            <span class="metric-unit">ms</span>
+                        </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">P99 Response Time</div>
-                        <div class="metric-value">{metrics.get('p99_response_time_ms', 0):.2f}<span class="metric-unit">ms</span></div>
+                        <div class="metric-value">
+                            {p99_response:.2f}
+                            <span class="metric-unit">ms</span>
+                        </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Min Response Time</div>
-                        <div class="metric-value">{metrics.get('min_response_time_ms', 0):.2f}<span class="metric-unit">ms</span></div>
+                        <div class="metric-value">
+                            {min_response:.2f}
+                            <span class="metric-unit">ms</span>
+                        </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Max Response Time</div>
-                        <div class="metric-value">{metrics.get('max_response_time_ms', 0):.2f}<span class="metric-unit">ms</span></div>
+                        <div class="metric-value">
+                            {max_response:.2f}
+                            <span class="metric-unit">ms</span>
+                        </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Test Duration</div>
-                        <div class="metric-value">{metrics.get('test_duration_seconds', 0):.2f}<span class="metric-unit">s</span></div>
+                        <div class="metric-value">
+                            {test_duration:.2f}
+                            <span class="metric-unit">s</span>
+                        </div>
                     </div>
                 </div>
             </div>

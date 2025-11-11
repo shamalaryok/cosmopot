@@ -23,7 +23,7 @@ from backend.referrals.exceptions import (
     ReferralCodeNotFoundError,
     WithdrawalInsufficientFundsError,
 )
-from backend.referrals.service import ReferralService, UserProtocol
+from backend.referrals.service import ReferralService
 from user_service.models import User
 
 router = APIRouter(prefix="/api/v1/referrals", tags=["referrals"])

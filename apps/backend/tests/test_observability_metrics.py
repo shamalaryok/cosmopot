@@ -17,7 +17,6 @@ from backend.observability.metrics import (
 )
 
 
-
 @pytest.fixture
 def app_with_metrics() -> TestClient:
     """Create test app with metrics enabled."""

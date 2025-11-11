@@ -95,7 +95,10 @@ def configure_sentry(settings: SentrySettingsProtocol) -> None:
         try:
             integrations.append(TornadoIntegration())
         except Exception:  # pragma: no cover - defensive guard
-            logger.debug("Failed to initialise Tornado Sentry integration", exc_info=True)
+            logger.debug(
+                "Failed to initialise Tornado Sentry integration",
+                exc_info=True,
+            )
 
     # Configure tracing if enabled
     traces_sampler: Callable[[dict[str, Any]], float] | None = None
@@ -249,7 +252,7 @@ def add_breadcrumb(
 class SentryMiddleware:
     """Middleware to add Sentry context to requests."""
 
-    def __init__(self, app: "FastAPI") -> None:
+    def __init__(self, app: FastAPI) -> None:
         self.app = app
 
     async def __call__(
@@ -273,7 +276,10 @@ class SentryMiddleware:
         await self.app(scope, receive, send)
 
 
-def setup_sentry_middleware(app: "FastAPI", settings: SentrySettingsProtocol | None = None) -> None:
+def setup_sentry_middleware(
+    app: FastAPI,
+    settings: SentrySettingsProtocol | None = None,
+) -> None:
     """Set up Sentry middleware for FastAPI app."""
     # Only set up middleware if Sentry is enabled
     if settings is not None and (not settings.enabled or settings.dsn is None):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Literal
 from urllib.parse import quote_plus
 
 from pydantic import (

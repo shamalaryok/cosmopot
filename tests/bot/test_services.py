@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncGenerator, AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock

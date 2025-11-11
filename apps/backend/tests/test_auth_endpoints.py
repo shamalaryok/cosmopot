@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, cast
+from collections.abc import Mapping
+from typing import cast
 
 import pytest
 from httpx import AsyncClient, Response

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from logging.config import dictConfig
+
 import structlog
 import structlog.types
 from structlog.contextvars import merge_contextvars
-from structlog.stdlib import BoundLogger, get_logger as get_structlog_logger
+from structlog.stdlib import BoundLogger
+from structlog.stdlib import get_logger as get_structlog_logger
 
 
 def _stack_info_renderer() -> structlog.types.Processor:

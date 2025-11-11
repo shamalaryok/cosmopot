@@ -4,7 +4,6 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest_asyncio
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -24,7 +23,6 @@ async def session_factory(
     tmp_path: Path,
 ) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     db_path = tmp_path / "test.db"
-    sync_url = f"sqlite:///{db_path}"
     async_url = f"sqlite+aiosqlite:///{db_path}"
 
     from user_service.models import Base
