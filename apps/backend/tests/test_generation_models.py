@@ -23,10 +23,10 @@ def test_generation_task_metadata_descriptor_behaviour() -> None:
         metadata=payload,
     )
 
-    assert task.metadata == payload
+    assert task.metadata_dict == payload
     assert task.meta_data == payload
 
     new_payload = {"baz": "qux"}
-    task.metadata = new_payload
+    task.metadata_dict = new_payload
 
     assert task.meta_data == new_payload

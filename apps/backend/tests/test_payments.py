@@ -178,7 +178,7 @@ async def test_create_payment_persists_record(
         assert db_payment.user_id == user.id
         assert db_payment.subscription_id == subscription_plan.id
         assert db_payment.status is PaymentStatus.PENDING
-        assert db_payment.metadata["plan_code"] == "basic"
+        assert db_payment.metadata_dict["plan_code"] == "basic"
 
     assert len(gateway.calls) == 1
     request_payload, idempotency_key = gateway.calls[0]

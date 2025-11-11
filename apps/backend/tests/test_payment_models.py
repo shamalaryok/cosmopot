@@ -25,10 +25,10 @@ def test_payment_metadata_descriptor_behaviour() -> None:
         metadata=payload,
     )
 
-    assert payment.metadata == payload
+    assert payment.metadata_dict == payload
     assert payment.meta_data == payload
 
     new_payload = {"updated": "data"}
-    payment.metadata = new_payload
+    payment.metadata_dict = new_payload
 
     assert payment.meta_data == new_payload
