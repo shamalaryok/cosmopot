@@ -97,7 +97,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && steps.trivy_scan.outcome == 'success'
         with:
           sarif_file: 'trivy-backend-results.sarif'
@@ -206,7 +206,7 @@ jobs:
 
       - name: Upload Trivy results to GitHub Security
         if: always() && steps.check-dockerfile.outputs.exists == 'true' && steps.trivy_scan.outcome == 'success'
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-bot-results.sarif'
           category: 'bot-image'
@@ -301,7 +301,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && steps.trivy_scan.outcome == 'success'
         with:
           sarif_file: 'trivy-worker-results.sarif'
@@ -397,7 +397,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && steps.trivy_scan.outcome == 'success'
         with:
           sarif_file: 'trivy-frontend-results.sarif'
