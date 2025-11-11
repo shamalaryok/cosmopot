@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Protocol, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 from uuid import UUID
 
 import structlog
@@ -47,8 +47,9 @@ from backend.generation.service import GenerationService, resolve_priority
 from user_service.enums import SubscriptionStatus
 from user_service.models import Subscription, User
 
+
 class CounterProtocol(Protocol):
-    def labels(self, **kwargs: str) -> "CounterProtocol": ...
+    def labels(self, **kwargs: str) -> CounterProtocol: ...
 
     def inc(self, amount: float = 1.0) -> None: ...
 
@@ -64,7 +65,7 @@ else:
             def __init__(self, *args: Any, **kwargs: Any) -> None:
                 self._labels: dict[str, str] = {}
 
-            def labels(self, **kwargs: str) -> "PrometheusCounter":
+            def labels(self, **kwargs: str) -> PrometheusCounter:
                 self._labels = kwargs
                 return self
 

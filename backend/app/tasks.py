@@ -26,7 +26,11 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-def typed_task(*, name: str, bind: bool = False) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def typed_task(
+    *,
+    name: str,
+    bind: bool = False,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     raw_decorator = cast(
         Callable[[Callable[P, R]], Callable[P, R]],
         celery_app.task(name=name, bind=bind),
@@ -89,6 +93,6 @@ def purge_old_s3_assets(retention_days: int | None = None) -> dict[str, Any]:
 
         logger.info("s3_purge_task_completed", result=result)
         return result
-    except Exception as exc:
+    except Exception:
         logger.exception("s3_purge_task_failed")
         raise

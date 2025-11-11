@@ -303,11 +303,15 @@ class ReferralService:
         result = await session.execute(stmt)
         return list(result.scalars().all())
 
-    async def _generate_referral_code(self, session: AsyncSession, user: UserProtocol) -> str:
+    async def _generate_referral_code(
+        self,
+        session: AsyncSession,
+        user: UserProtocol,
+    ) -> str:
         """Generate a unique referral code for a user."""
         for _ in range(10):  # Try up to 10 times
             code = secrets.token_urlsafe(8)[:12].upper()
-            
+
             # Check if code already exists
             existing_stmt = (
                 select(Referral.id).where(Referral.referral_code == code).limit(1)

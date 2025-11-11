@@ -16,13 +16,13 @@ import time
 from typing import Any
 
 import structlog
-from locust import HttpUser, between, task
 from dotenv import load_dotenv
+from locust import HttpUser, between, task
 
 from load_tests.utils import (
     AuthTokenGenerator,
-    TestDataGenerator,
     MetricsCollector,
+    TestDataGenerator,
 )
 
 load_dotenv(".env.load-testing")
@@ -84,7 +84,10 @@ class AuthUser(HttpUser):
             if response.status_code == 201 or response.status_code == 200:
                 response.success()
                 created_users[email] = {"password": password}
-                auth_metrics.record_response(response_time_ms, response.status_code)
+                auth_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.info(
                     "register_user_success",
                     email=email,
@@ -92,7 +95,10 @@ class AuthUser(HttpUser):
                 )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                auth_metrics.record_response(response_time_ms, response.status_code)
+                auth_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.warning(
                     "register_user_failed",
                     email=email,
@@ -126,7 +132,10 @@ class AuthUser(HttpUser):
 
             if response.status_code == 200:
                 response.success()
-                auth_metrics.record_response(response_time_ms, response.status_code)
+                auth_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.info(
                     "login_user_success",
                     email=email,
@@ -134,7 +143,10 @@ class AuthUser(HttpUser):
                 )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                auth_metrics.record_response(response_time_ms, response.status_code)
+                auth_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
         except Exception as e:
             response_time_ms = (time.time() - start_time) * 1000
             auth_metrics.record_error(str(e))
@@ -152,10 +164,16 @@ class AuthUser(HttpUser):
 
             if response.status_code == 200:
                 response.success()
-                auth_metrics.record_response(response_time_ms, response.status_code)
+                auth_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                auth_metrics.record_response(response_time_ms, response.status_code)
+                auth_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
         except Exception as e:
             response_time_ms = (time.time() - start_time) * 1000
             auth_metrics.record_error(str(e))
@@ -210,14 +228,20 @@ class GenerationUser(HttpUser):
                     pass
 
                 response.success()
-                generation_metrics.record_response(response_time_ms, response.status_code)
+                generation_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.info(
                     "create_generation_success",
                     response_time_ms=response_time_ms,
                 )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                generation_metrics.record_response(response_time_ms, response.status_code)
+                generation_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.warning(
                     "create_generation_failed",
                     status_code=response.status_code,
@@ -242,10 +266,16 @@ class GenerationUser(HttpUser):
 
             if response.status_code == 200:
                 response.success()
-                generation_metrics.record_response(response_time_ms, response.status_code)
+                generation_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                generation_metrics.record_response(response_time_ms, response.status_code)
+                generation_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
         except Exception as e:
             response_time_ms = (time.time() - start_time) * 1000
             generation_metrics.record_error(str(e))
@@ -271,10 +301,16 @@ class GenerationUser(HttpUser):
 
             if response.status_code == 200:
                 response.success()
-                generation_metrics.record_response(response_time_ms, response.status_code)
+                generation_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                generation_metrics.record_response(response_time_ms, response.status_code)
+                generation_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
         except Exception as e:
             response_time_ms = (time.time() - start_time) * 1000
             generation_metrics.record_error(str(e))
@@ -329,14 +365,20 @@ class PaymentUser(HttpUser):
                     pass
 
                 response.success()
-                payments_metrics.record_response(response_time_ms, response.status_code)
+                payments_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.info(
                     "create_payment_success",
                     response_time_ms=response_time_ms,
                 )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                payments_metrics.record_response(response_time_ms, response.status_code)
+                payments_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
                 logger.warning(
                     "create_payment_failed",
                     status_code=response.status_code,
@@ -361,10 +403,16 @@ class PaymentUser(HttpUser):
 
             if response.status_code == 200:
                 response.success()
-                payments_metrics.record_response(response_time_ms, response.status_code)
+                payments_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
             else:
                 response.failure(f"Unexpected status: {response.status_code}")
-                payments_metrics.record_response(response_time_ms, response.status_code)
+                payments_metrics.record_response(
+                    response_time_ms,
+                    response.status_code,
+                )
         except Exception as e:
             response_time_ms = (time.time() - start_time) * 1000
             payments_metrics.record_error(str(e))

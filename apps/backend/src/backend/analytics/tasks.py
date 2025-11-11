@@ -2,7 +2,7 @@
 
 import asyncio
 import datetime as dt
-from collections.abc import AsyncContextManager, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import schedule
@@ -110,7 +110,9 @@ class AnalyticsScheduler:
         """Process pending analytics events."""
         try:
             async with _get_session() as session:
-                result: dict[str, int] = await self.analytics_service.process_pending_events(session)
+                result: dict[str, int] = await self.analytics_service.process_pending_events(
+                    session
+                )
                 logger.info(
                     "Processed pending analytics events",
                     processed=result["processed"],

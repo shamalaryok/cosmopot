@@ -42,6 +42,9 @@ class FlashMessage(TypedDict):
     text: str
 
 
+JSONDict: TypeAlias = dict[str, Any]
+
+
 _PROMPT_CATALOG = [
     {
         "title": "Neon skyline",

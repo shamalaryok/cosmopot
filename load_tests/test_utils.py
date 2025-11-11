@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from load_tests.utils import (
     AuthTokenGenerator,
     MetricsCollector,

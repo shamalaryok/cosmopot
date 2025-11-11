@@ -48,7 +48,7 @@ async def test_webhook_route_dispatches_update(
                     },
                 }
             )
-            setattr(runtime.bot.session, "make_request", make_request_mock)
+            runtime.bot.session.make_request = make_request_mock
 
             app = FastAPI()
             app.state.settings = bot_settings

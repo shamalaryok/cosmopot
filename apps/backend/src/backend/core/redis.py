@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 from backend.core.config import Settings, get_settings
 
 if TYPE_CHECKING:
-    from fakeredis.aioredis import FakeRedis
+    pass
 
 
 FakeRedisFactory: Callable[..., Redis] | None = None

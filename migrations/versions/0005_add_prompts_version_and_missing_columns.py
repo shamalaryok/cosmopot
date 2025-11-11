@@ -53,9 +53,14 @@ def upgrade() -> None:
     # Add version column
     op.add_column(
         "prompts",
-        sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1"))
+        sa.Column(
+            "version",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("1"),
+        ),
     )
-    
+
     # Add parameters_schema column
     op.add_column(
         "prompts",
@@ -70,9 +75,14 @@ def upgrade() -> None:
     # Add is_active column
     op.add_column(
         "prompts",
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true"))
+        sa.Column(
+            "is_active",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
     )
-    
+
     # Drop old unique constraint and index using batch mode for SQLite
     with op.batch_alter_table("prompts", schema=None) as batch_op:
         batch_op.drop_constraint("uq_prompts_slug", type_="unique")
@@ -87,8 +97,16 @@ def upgrade() -> None:
     
     # Add new indexes
     with op.batch_alter_table("prompts", schema=None) as batch_op:
-        batch_op.create_index("ix_prompts_category", ["category"], unique=False)
-        batch_op.create_index("ix_prompts_slug_active", ["slug", "is_active"], unique=False)
+        batch_op.create_index(
+            "ix_prompts_category",
+            ["category"],
+            unique=False,
+        )
+        batch_op.create_index(
+            "ix_prompts_slug_active",
+            ["slug", "is_active"],
+            unique=False,
+        )
 
 
 def downgrade() -> None:

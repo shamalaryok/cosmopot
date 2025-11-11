@@ -12,8 +12,7 @@ from typing import Any
 
 import structlog
 from faker import Faker
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 fake = Faker()
 logger = structlog.get_logger(__name__)

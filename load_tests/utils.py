@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
