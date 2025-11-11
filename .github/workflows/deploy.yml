@@ -33,7 +33,7 @@ jobs:
       tag-exists: ${{ steps.check-tag.outputs.exists }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -65,7 +65,7 @@ jobs:
     if: ${{ !github.event.inputs.skip_tests }}
     steps:
       - name: Checkout code at tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.inputs.tag }}
 
@@ -125,7 +125,7 @@ jobs:
       url: https://staging.example.com
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create deployment notification
         run: |
@@ -157,7 +157,7 @@ jobs:
       url: https://example.com
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create deployment notification
         run: |
