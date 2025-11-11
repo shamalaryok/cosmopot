@@ -57,14 +57,7 @@ metadata: ClassVar[MetaData] = MetaData(
 def _generation_status_values(
     enum_cls: type[GenerationTaskStatus],
 ) -> list[str]:
-    values: set[str] = {member.value for member in enum_cls}
-    legacy_aliases: dict[str, GenerationTaskStatus] | None = getattr(
-        enum_cls, "_LEGACY_ALIASES", None
-    )
-    if legacy_aliases:
-        values.update(legacy_aliases)
-        values.update(status.value for status in legacy_aliases.values())
-    return sorted(values)
+    return [member.value for member in enum_cls]
 
 
 class Base(DeclarativeBase):

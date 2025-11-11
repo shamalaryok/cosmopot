@@ -750,7 +750,13 @@ async def create_generation_task(
     """Create a generation task tied to a user and prompt."""
 
     payload = data.model_dump()
-    payload["status"] = GenerationTaskStatus(payload["status"])
+    status_value = payload.get("status")
+    if isinstance(status_value, GenerationTaskStatus):
+        payload["status"] = status_value
+    elif status_value is None:
+        payload["status"] = GenerationTaskStatus.PENDING
+    else:
+        payload["status"] = GenerationTaskStatus.get_by_code(str(status_value))
     payload["source"] = GenerationTaskSource(payload["source"])
     payload["parameters"] = dict(payload.get("parameters") or {})
     payload["result_parameters"] = dict(payload.get("result_parameters") or {})

@@ -153,3 +153,63 @@ def test_schema_validates_s3_urls() -> None:
             source=GenerationTaskSource.API,
             input_asset_url="https://example.com/input",
         )
+
+
+def test_generation_task_status_helpers() -> None:
+    assert GenerationTaskStatus.get_by_code("pending") == GenerationTaskStatus.PENDING
+    assert GenerationTaskStatus.get_by_code("PENDING") == GenerationTaskStatus.PENDING
+    assert GenerationTaskStatus.get_by_code("Pending") == GenerationTaskStatus.PENDING
+
+    assert GenerationTaskStatus.get_by_code("completed") == GenerationTaskStatus.COMPLETED
+    assert GenerationTaskStatus.get_by_code("COMPLETED") == GenerationTaskStatus.COMPLETED
+
+    assert GenerationTaskStatus.get_by_code("failed") == GenerationTaskStatus.FAILED
+    assert GenerationTaskStatus.get_by_code("canceled") == GenerationTaskStatus.CANCELED
+    assert GenerationTaskStatus.get_by_code("queued") == GenerationTaskStatus.QUEUED
+    assert GenerationTaskStatus.get_by_code("running") == GenerationTaskStatus.RUNNING
+
+
+def test_generation_task_status_legacy_aliases() -> None:
+    assert GenerationTaskStatus.get_by_code("succeeded") == GenerationTaskStatus.COMPLETED
+    assert GenerationTaskStatus.get_by_code("SUCCEEDED") == GenerationTaskStatus.COMPLETED
+    assert GenerationTaskStatus.get_by_code("Succeeded") == GenerationTaskStatus.COMPLETED
+
+    assert GenerationTaskStatus("succeeded") == GenerationTaskStatus.COMPLETED
+
+
+def test_generation_task_status_get_by_code_invalid() -> None:
+    with pytest.raises(ValueError, match="invalid status code"):
+        GenerationTaskStatus.get_by_code("invalid")
+
+    with pytest.raises(ValueError, match="invalid status code"):
+        GenerationTaskStatus.get_by_code("unknown")
+
+    with pytest.raises(ValueError, match="code must be a string"):
+        GenerationTaskStatus.get_by_code(123)  # type: ignore[arg-type]
+
+
+def test_generation_task_status_get_name() -> None:
+    assert GenerationTaskStatus.get_name(GenerationTaskStatus.PENDING) == "pending"
+    assert GenerationTaskStatus.get_name(GenerationTaskStatus.COMPLETED) == "completed"
+    assert GenerationTaskStatus.get_name(GenerationTaskStatus.SUCCEEDED) == "completed"
+    assert GenerationTaskStatus.get_name(GenerationTaskStatus.FAILED) == "failed"
+
+    assert GenerationTaskStatus.get_name("pending") == "pending"
+    assert GenerationTaskStatus.get_name("PENDING") == "pending"
+    assert GenerationTaskStatus.get_name("completed") == "completed"
+    assert GenerationTaskStatus.get_name("succeeded") == "completed"
+    assert GenerationTaskStatus.get_name("SUCCEEDED") == "completed"
+
+
+def test_generation_task_status_get_name_invalid() -> None:
+    with pytest.raises(ValueError, match="invalid status code"):
+        GenerationTaskStatus.get_name("invalid")
+
+    with pytest.raises(ValueError, match="status must be"):
+        GenerationTaskStatus.get_name(123)  # type: ignore[arg-type]
+
+
+def test_generation_task_status_succeeded_alias() -> None:
+    assert GenerationTaskStatus.SUCCEEDED == GenerationTaskStatus.COMPLETED
+    assert GenerationTaskStatus.SUCCEEDED.value == "completed"
+    assert GenerationTaskStatus.COMPLETED.value == "completed"

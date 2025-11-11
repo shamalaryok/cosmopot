@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import ClassVar
 
 
 class UserRole(StrEnum):
@@ -78,11 +79,9 @@ class GenerationTaskStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELED = "canceled"
-    SUCCEEDED = COMPLETED
 
-    _LEGACY_ALIASES: dict[str, "GenerationTaskStatus"] = {
-        "succeeded": COMPLETED,
-    }
+    _LEGACY_ALIASES: ClassVar[dict[str, "GenerationTaskStatus"]]
+    SUCCEEDED: ClassVar["GenerationTaskStatus"]
 
     @classmethod
     def _missing_(cls, value: object) -> GenerationTaskStatus | None:
@@ -91,6 +90,76 @@ class GenerationTaskStatus(StrEnum):
             if legacy is not None:
                 return legacy
         return super()._missing_(value)
+
+    @classmethod
+    def _get_legacy_aliases(cls) -> dict[str, GenerationTaskStatus]:
+        """Return the legacy alias mapping."""
+        return cls._LEGACY_ALIASES
+
+    @classmethod
+    def get_by_code(cls, code: str) -> GenerationTaskStatus:
+        """Look up a status by code string, normalizing case and handling legacy aliases.
+
+        Args:
+            code: The status code string to look up
+
+        Returns:
+            The matching GenerationTaskStatus enum member
+
+        Raises:
+            ValueError: If the code is not a valid status
+        """
+        if not isinstance(code, str):
+            raise ValueError(f"code must be a string, got {type(code).__name__}")
+
+        normalized = code.strip().lower()
+        if not normalized:
+            raise ValueError("code must not be empty")
+
+        # Check legacy aliases first
+        legacy_aliases = cls._get_legacy_aliases()
+        if normalized in legacy_aliases:
+            return legacy_aliases[normalized]
+
+        # Try direct lookup
+        try:
+            return cls(normalized)
+        except ValueError as exc:
+            valid_codes = sorted({member.value for member in cls} | set(legacy_aliases.keys()))
+            raise ValueError(
+                f"invalid status code '{code}', must be one of: {', '.join(valid_codes)}"
+            ) from exc
+
+    @classmethod
+    def get_name(cls, status: GenerationTaskStatus | str) -> str:
+        """Get the canonical display name for a status.
+
+        Args:
+            status: A GenerationTaskStatus enum member or status code string
+
+        Returns:
+            The canonical name of the status (the enum member's value)
+
+        Raises:
+            ValueError: If the status is not valid
+        """
+        if isinstance(status, cls):
+            return status.value
+
+        if isinstance(status, str):
+            resolved = cls.get_by_code(status)
+            return resolved.value
+
+        raise ValueError(
+            f"status must be a GenerationTaskStatus or string, got {type(status).__name__}"
+        )
+
+
+GenerationTaskStatus._LEGACY_ALIASES = {
+    "succeeded": GenerationTaskStatus.COMPLETED,
+}
+# Set up the deprecated SUCCEEDED alias to point to COMPLETED
+GenerationTaskStatus.SUCCEEDED = GenerationTaskStatus.COMPLETED
 
 
 class GenerationTaskSource(StrEnum):
