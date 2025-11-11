@@ -155,7 +155,7 @@ async def test_generation_flow_success(
         assert task is not None
         assert task.status.value == "queued"
         assert task.s3_key.startswith(f"input/{user.id}/")
-        assert task.metadata["filename"] == "seed.png"
+        assert task.metadata_dict["filename"] == "seed.png"
 
         result = await session.execute(
             select(Subscription).where(Subscription.user_id == user.id)

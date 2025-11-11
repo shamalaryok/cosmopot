@@ -26,11 +26,11 @@ def test_user_service_payment_metadata_descriptor() -> None:
         metadata=payload,
     )
 
-    assert payment.metadata == payload
+    assert payment.metadata_dict == payload
     assert payment.meta_data == payload
 
     new_payload = {"updated": "data"}
-    payment.metadata = new_payload
+    payment.metadata_dict = new_payload
 
     assert payment.meta_data == new_payload
 
@@ -53,7 +53,7 @@ def test_user_service_subscription_metadata_descriptor() -> None:
         metadata=payload,
     )
 
-    assert subscription.metadata == payload
+    assert subscription.metadata_dict == payload
     assert subscription.meta_data == payload
 
 
