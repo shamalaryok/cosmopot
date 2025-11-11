@@ -1,0 +1,138 @@
+name: Semantic PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate-pr-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title follows semantic commit convention
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          scopes: |
+            backend
+            bot
+            frontend
+            worker
+            ci
+            deps
+            api
+            db
+            auth
+            docs
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            doesn't start with an uppercase character.
+          validateSingleCommit: false
+
+  validate-commits:
+    name: Validate Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        run: |
+          echo "Checking commit messages for semantic format..."
+          
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          
+          COMMITS=$(git log --pretty=format:"%H %s" $BASE_SHA..$HEAD_SHA)
+          
+          VALID_TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+          PATTERN="^($VALID_TYPES)(\(.+\))?!?: .+"
+          
+          FAILED=0
+          while IFS= read -r commit; do
+            HASH=$(echo "$commit" | awk '{print $1}')
+            MESSAGE=$(echo "$commit" | cut -d' ' -f2-)
+            
+            if [[ ! "$MESSAGE" =~ $PATTERN ]]; then
+              echo "❌ Invalid commit message format:"
+              echo "   Hash: $HASH"
+              echo "   Message: $MESSAGE"
+              echo ""
+              FAILED=1
+            else
+              echo "✅ Valid: $MESSAGE"
+            fi
+          done <<< "$COMMITS"
+          
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "Commit messages must follow the Conventional Commits specification:"
+            echo "  <type>[optional scope]: <description>"
+            echo ""
+            echo "Examples:"
+            echo "  feat(backend): add user authentication"
+            echo "  fix(api): resolve race condition in websocket handler"
+            echo "  docs: update deployment guide"
+            echo ""
+            echo "Valid types: $VALID_TYPES"
+            echo ""
+            echo "Note: Commit messages must use lowercase types (e.g., 'fix:', not 'Fix:')"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All commit messages are valid!"
+
+  semantic-summary:
+    name: Semantic Validation Summary
+    runs-on: ubuntu-latest
+    needs: [validate-pr-title, validate-commits]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Semantic Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## PR Title Validation" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.validate-pr-title.result }}" == "success" ]; then
+            echo "✅ PR title follows semantic convention" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ PR title does not follow semantic convention" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Commit Message Validation" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.validate-commits.result }}" == "success" ]; then
+            echo "✅ All commits follow semantic convention" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some commits do not follow semantic convention" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Semantic Commit Format" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '<type>[optional scope]: <description>' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo 'PR Titles: Types are case-insensitive (e.g., both "fix:" and "Fix:" are valid)' >> $GITHUB_STEP_SUMMARY
+          echo 'Commit Messages: Types must be lowercase (e.g., "fix:", not "Fix:")' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo 'Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert' >> $GITHUB_STEP_SUMMARY
+          echo 'Scopes: backend, bot, frontend, worker, ci, deps, api, db, auth, docs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

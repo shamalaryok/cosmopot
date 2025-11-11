@@ -1,0 +1,130 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@prodstack.local'
+  smtp_auth_username: 'alerts@prodstack.local'
+  smtp_auth_password: 'smtp_password'
+
+# Route configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default'
+  routes:
+    # Critical alerts go to PagerDuty
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      group_wait: 5s
+      repeat_interval: 30m
+      continue: true
+    
+    # Warning alerts go to email
+    - match:
+        severity: warning
+      receiver: 'email-warning'
+      group_wait: 30s
+      repeat_interval: 2h
+    
+    # Info alerts go to email only during business hours
+    - match:
+        severity: info
+      receiver: 'email-info'
+      active_time_intervals:
+        - business-hours
+
+# Time intervals for business hours
+time_intervals:
+  - name: business-hours
+    time_intervals:
+      - times:
+          - start_time: '09:00'
+            end_time: '17:00'
+        weekdays: ['monday:friday']
+        location: 'UTC'
+
+# Receivers configuration
+receivers:
+  # Default receiver
+  - name: 'default'
+    email_configs:
+      - to: 'alerts@prodstack.local'
+        subject: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Labels: {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+
+  # PagerDuty for critical alerts
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: 'your-pagerduty-service-key'
+        description: '{{ .GroupLabels.alertname }}: {{ .Annotations.summary }}'
+        details:
+          cluster: '{{ .GroupLabels.cluster }}'
+          service: '{{ .GroupLabels.service }}'
+          severity: '{{ .GroupLabels.severity }}'
+          runbook_url: '{{ .Annotations.runbook_url }}'
+
+  # Email for warning alerts
+  - name: 'email-warning'
+    email_configs:
+      - to: 'oncall@prodstack.local'
+        subject: '[WARNING] {{ .GroupLabels.alertname }}'
+        body: |
+          Warning Alert Triggered:
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Cluster: {{ .Labels.cluster }}
+          Service: {{ .Labels.service }}
+          
+          Runbook: {{ .Annotations.runbook_url }}
+          
+          Started: {{ .StartsAt }}
+          {{ if .EndsAt }}Ended: {{ .EndsAt }}{{ end }}
+          
+          Labels:
+          {{ range .Labels.SortedPairs }}  {{ .Name }}: {{ .Value }}
+          {{ end }}
+          {{ end }}
+
+  # Email for info alerts
+  - name: 'email-info'
+    email_configs:
+      - to: 'team@prodstack.local'
+        subject: '[INFO] {{ .GroupLabels.alertname }}'
+        body: |
+          Informational Alert:
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          
+          Started: {{ .StartsAt }}
+          {{ end }}
+
+# Inhibition rules to prevent alert spam
+inhibit_rules:
+  # Inhibit info alerts if critical alert is firing for same service
+  - source_match:
+      severity: critical
+    target_match:
+      severity: info
+    equal: ['service', 'alertname']
+
+  # Inhibit warning alerts if critical alert is firing for same service
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['service', 'alertname']
+
+# Templates for custom alert formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

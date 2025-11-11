@@ -1,0 +1,180 @@
+name: Task Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: "Python version to use"
+        required: false
+        default: "3.11"
+      node-version:
+        description: "Node.js version to use"
+        required: false
+        default: "20"
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: ${{ inputs.python-version }}
+  NODE_VERSION: ${{ inputs.node-version }}
+
+jobs:
+  task-runner:
+    name: Task Runner Validation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.8
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Bootstrap dependencies
+        run: scripts/task_runner_setup.sh
+
+      - name: Run Ruff lint
+        run: ruff check apps/backend apps/bot src tests --output-format=github
+
+      - name: Check Ruff formatting
+        run: ruff format --check apps/backend apps/bot src tests
+
+      - name: Run Black formatter check
+        run: black --check apps/backend apps/bot src tests
+
+      - name: Run mypy
+        run: mypy apps/backend/src apps/bot/src src
+
+      - name: Run backend tests with coverage
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+        run: |
+          pytest tests apps/backend/tests \
+            --cov=backend \
+            --cov=user_service \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-backend.xml \
+            --cov-report=html:htmlcov-backend \
+            --cov-fail-under=80 \
+            -v
+
+      - name: Run bot tests with coverage
+        env:
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+        run: |
+          pytest apps/bot/tests \
+            --cov=bot \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-bot.xml \
+            --cov-report=html:htmlcov-bot \
+            --cov-fail-under=80 \
+            -v
+
+      - name: Run frontend lint checks
+        working-directory: frontend/spa
+        run: pnpm lint
+
+      - name: Run frontend type checks
+        working-directory: frontend/spa
+        run: pnpm typecheck
+
+      - name: Run frontend tests with coverage
+        working-directory: frontend/spa
+        run: pnpm test:coverage
+
+      - name: Upload backend coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-runner-backend-coverage
+          path: |
+            coverage-backend.xml
+            htmlcov-backend/
+          retention-days: 7
+
+      - name: Upload bot coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-runner-bot-coverage
+          path: |
+            coverage-bot.xml
+            htmlcov-bot/
+          retention-days: 7
+
+      - name: Upload frontend coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-runner-frontend-coverage
+          path: frontend/spa/coverage/
+          retention-days: 7
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Task Runner Outputs"
+            echo ""
+            echo "- Backend coverage artifact: task-runner-backend-coverage"
+            echo "- Bot coverage artifact: task-runner-bot-coverage"
+            echo "- Frontend coverage artifact: task-runner-frontend-coverage"
+            echo ""
+            echo "Artifacts are available on the workflow run page under the *Artifacts* section."
+          } >> "$GITHUB_STEP_SUMMARY"

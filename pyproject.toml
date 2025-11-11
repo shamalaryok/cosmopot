@@ -1,0 +1,204 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "platform"
+version = "0.1.0"
+description = "Monorepo containing backend, bot, and shared user services."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "SQLAlchemy>=2.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "pydantic>=2.4",
+    "email-validator>=2.1",
+    "pydantic-settings>=2.0",
+    "alembic>=1.12",
+    "aiosqlite>=0.19",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.23",
+    "python-multipart>=0.0.9",
+    "httpx>=0.24",
+    "jsonschema>=4.19",
+    "structlog>=23.1",
+    "redis>=5.0",
+    "fakeredis>=2.19",
+    "celery>=5.3",
+    "aio-pika>=9.2.2",
+    "argon2-cffi>=23.1",
+    "PyJWT>=2.8",
+    "yookassa>=3.0",
+    "stripe>=7.0",
+    "greenlet>=3.0",
+    "orjson>=3.9",
+    "Pillow>=10.0",
+    "minio>=7.1",
+    "aiogram>=3.2",
+    "boto3>=1.28",
+    "cryptography>=41.0",
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+    "websockets>=11.0",
+    "amplitude-analytics>=1.0.0,<2.0.0",
+    "mixpanel>=4.10.0",
+    "tenacity>=8.2.0",
+    "schedule>=1.2.0",
+    "prometheus-client>=0.19.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+    "sentry-sdk[fastapi]>=1.38.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.9",
+    "coverage[toml]>=7.3",
+    "mypy>=1.5",
+    "pytest-cov>=4.1",
+    "ruff>=0.1.5",
+    "types-jsonschema",
+]
+load-testing = [
+    "locust>=2.15.0",
+    "faker>=20.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src", "apps/backend/src", "apps/bot/src"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests", "apps/backend/tests", "apps/bot/tests", "load_tests"]
+addopts = "-q --disable-warnings --maxfail=1 --cov --cov-report=term-missing --cov-report=xml:coverage-backend.xml --cov-config=pyproject.toml"
+asyncio_mode = "auto"
+pythonpath = ["src", "apps/backend/src", "apps/bot/src"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unused_configs = true
+# Allow src and apps/bot/src to share the "bot" namespace without duplicate-module errors; keep __init__.py files at each root for this to work.
+explicit_package_bases = true
+namespace_packages = true
+# Point mypy at all package roots so imports like `backend.*` and `bot.*` resolve.
+# Set mypy_path to resolve backend, bot, and user_service packages from their root locations
+mypy_path = "src:apps/backend/src:apps/bot/src"
+# Check specific packages individually to avoid namespace package conflicts
+files = [
+    "src/bot",
+    "src/user_service",
+    "apps/backend/src/backend",
+    "apps/bot/src/bot_runtime",
+    "backend/app",
+    "migrations",
+    "tests",
+    "apps/backend/tests",
+    "apps/bot/tests",
+]
+exclude = [
+    "^\\.venv/",
+    "^frontend/",
+]
+
+# Silence missing type information for third-party packages without stubs.
+[[tool.mypy.overrides]]
+module = [
+    "aio_pika",
+    "aio_pika.*",
+    "aioboto3",
+    "aioboto3.*",
+    "aiogram",
+    "aiogram.*",
+    "boto3",
+    "boto3.*",
+    "botocore",
+    "botocore.*",
+    "celery",
+    "celery.*",
+    "minio",
+    "minio.*",
+    "prometheus_client",
+    "prometheus_fastapi_instrumentator",
+    "psycopg_pool",
+    "redis.asyncio",
+    "redis.asyncio.*",
+    "sentry_sdk",
+    "structlog",
+    "structlog.*",
+    "PIL",
+    "PIL.*",
+    "yookassa",
+    "yookassa.*",
+    "stripe",
+    "stripe.*",
+]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_typed = true
+warn_untyped_fields = true
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["apps/backend/src", "apps/backend/tests", "apps/bot/src", "apps/bot/tests", "src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "Q", "I", "UP", "ASYNC"]
+ignore = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.coverage.run]
+branch = true
+source = [
+    "apps/backend/src/backend",
+    "apps/bot/src",
+    "src",
+]
+omit = [
+    "backend/app/*",
+    "backend/app/**",
+    "apps/backend/migrations/*",
+    "apps/backend/src/backend/main.py",
+    "apps/backend/src/backend/generation/repository.py",
+    "apps/backend/src/backend/generation/service.py",
+    "apps/backend/src/backend/payments/gateway.py",
+    "apps/backend/src/backend/payments/service.py",
+    "apps/backend/src/backend/payments/dependencies.py",
+    "apps/backend/src/backend/services/telegram.py",
+    "apps/backend/src/backend/db/dependencies.py",
+    "apps/backend/src/backend/db/types.py",
+    "apps/bot/src/bot_runtime/handlers/commands.py",
+    "apps/bot/src/bot_runtime/middlewares/dependency.py",
+    "apps/bot/src/bot_runtime/middlewares/error.py",
+    "apps/bot/src/bot_runtime/middlewares/logging.py",
+    "apps/bot/src/bot_runtime/services/auth.py",
+    "src/user_service/database.py",
+    "**/__init__.py",
+    "tests/*",
+]
+relative_files = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "if TYPE_CHECKING:",
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "return NotImplemented",
+    "class.*Protocol",
+    "@abstractmethod",
+    "def __repr__",
+    "def __str__",
+]

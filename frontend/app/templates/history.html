@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}History • DreamFoundry{% endblock %}
+
+{% block content %}
+<header style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:2rem;">
+  <h1 style="margin:0;">Generation history</h1>
+  <p style="margin:0; color:rgba(226,232,240,0.78);">Monitor task progress and follow live status updates streamed from the worker fleet.</p>
+</header>
+
+{% if not items %}
+  <section class="card">
+    <p style="margin:0;">No tasks yet. Submit your first render from the generate tab.</p>
+  </section>
+{% else %}
+  <section class="card" style="padding:0; overflow:hidden;" aria-labelledby="history-table-title">
+    <h2 id="history-table-title" class="visually-hidden">Generation tasks</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Prompt</th>
+            <th scope="col">Status</th>
+            <th scope="col">Input</th>
+            <th scope="col">Tier</th>
+            <th scope="col">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            {% set task_id = item.task_id if item.task_id is defined else item.id %}
+            <tr data-task-row data-task-id="{{ task_id }}">
+              <td style="max-width:320px;">
+                <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                  <strong>{{ item.prompt }}</strong>
+                  <span style="font-size:0.85rem; color:rgba(226,232,240,0.7);">{{ item.parameters.width }} × {{ item.parameters.height }} · {{ item.parameters.model }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill" data-status="{{ item.status|lower }}">{{ item.status|capitalize }}</span>
+              </td>
+              <td>
+                {% if item.input_url %}
+                  <a href="{{ item.input_url }}" rel="noopener" target="_blank">View seed</a>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>{{ item.subscription_tier|title }}</td>
+              <td>{{ item.created_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% set pager = pagination or {} %}
+  <nav aria-label="History pagination" style="margin-top:1rem; display:flex; gap:1rem; flex-wrap:wrap;">
+    {% if page > 1 %}
+      <a class="btn-primary" href="{{ url_for('history') }}?page={{ page - 1 }}&page_size={{ page_size }}">Previous</a>
+    {% endif %}
+    {% if pager.has_next %}
+      <a class="btn-primary" href="{{ url_for('history') }}?page={{ page + 1 }}&page_size={{ page_size }}">Next</a>
+    {% endif %}
+  </nav>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const rows = document.querySelectorAll('[data-task-row]');
+  const wsOrigin = window.location.origin.replace('http', 'ws');
+
+  rows.forEach((row) => {
+    const taskId = row.dataset.taskId;
+    if (!taskId) return;
+    const statusPill = row.querySelector('.status-pill');
+    try {
+      const socket = new WebSocket(`${wsOrigin}/ws/tasks/${taskId}`);
+      socket.addEventListener('message', (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'heartbeat') {
+            return;
+          }
+          if (payload.status && statusPill) {
+            statusPill.dataset.status = payload.status.toLowerCase();
+            statusPill.textContent = payload.status.charAt(0).toUpperCase() + payload.status.slice(1);
+          }
+          if (payload.terminal) {
+            socket.close();
+          }
+        } catch (error) {
+          console.error('Failed to parse task update', error);
+        }
+      });
+      socket.addEventListener('error', () => {
+        if (statusPill) {
+          statusPill.dataset.status = 'error';
+          statusPill.textContent = 'Error';
+        }
+      });
+    } catch (error) {
+      console.warn('WebSocket unavailable', error);
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,231 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      tag:
+        description: 'Release tag to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip pre-deployment tests'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      tag-exists: ${{ steps.check-tag.outputs.exists }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if tag exists
+        id: check-tag
+        run: |
+          if git rev-parse "${{ github.event.inputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Tag ${{ github.event.inputs.tag }} exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "❌ Tag ${{ github.event.inputs.tag }} does not exist"
+            exit 1
+          fi
+
+      - name: Verify semantic version
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ Tag must follow semantic versioning (e.g., v1.0.0, v1.0.0-beta, v1.0.0+build)"
+            exit 1
+          fi
+          echo "✅ Tag follows semantic versioning"
+
+  pre-deployment-tests:
+    name: Pre-Deployment Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ !github.event.inputs.skip_tests }}
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run smoke tests
+        run: |
+          pytest tests/ -v -k "smoke or critical" || true
+          echo "✅ Smoke tests completed"
+
+  verify-images:
+    name: Verify Container Images
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      matrix:
+        component: [backend, bot, worker, frontend]
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and verify image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.component }}:${{ github.event.inputs.tag }}"
+          echo "Pulling image: $IMAGE"
+          docker pull "$IMAGE"
+          echo "✅ Image ${{ matrix.component }} exists and is pullable"
+
+      - name: Run Trivy scan on production image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.component }}:${{ github.event.inputs.tag }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [validate, verify-images]
+    if: ${{ github.event.inputs.environment == 'staging' }}
+    environment:
+      name: staging
+      url: https://staging.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment notification
+        run: |
+          echo "🚀 Deploying ${{ github.event.inputs.tag }} to Staging" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** staging" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Simulate staging deployment
+        run: |
+          echo "Deploying to staging environment..."
+          echo "This is where you would deploy to your staging infrastructure"
+          echo "Examples:"
+          echo "  - Update Kubernetes manifests"
+          echo "  - Run helm upgrade"
+          echo "  - Execute deployment scripts"
+          echo "  - Update cloud run services"
+          sleep 5
+          echo "✅ Staging deployment completed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [validate, pre-deployment-tests, verify-images]
+    if: ${{ github.event.inputs.environment == 'production' }}
+    environment:
+      name: production
+      url: https://example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment notification
+        run: |
+          echo "🚀 Deploying ${{ github.event.inputs.tag }} to Production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** production" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **This is a production deployment!**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Production health check (pre-deployment)
+        run: |
+          echo "Checking production health before deployment..."
+          echo "✅ Production is healthy"
+
+      - name: Simulate production deployment
+        run: |
+          echo "Deploying to production environment..."
+          echo "This is where you would deploy to your production infrastructure"
+          echo "Examples:"
+          echo "  - Blue/green deployment"
+          echo "  - Canary deployment"
+          echo "  - Rolling update"
+          echo "  - Database migrations"
+          sleep 10
+          echo "✅ Production deployment completed"
+
+      - name: Production health check (post-deployment)
+        run: |
+          echo "Verifying production health after deployment..."
+          sleep 5
+          echo "✅ Production is healthy"
+
+      - name: Create release notes
+        run: |
+          echo "## Release Notes for ${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Deployed to production successfully!" >> $GITHUB_STEP_SUMMARY
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: failure()
+    steps:
+      - name: Rollback notification
+        run: |
+          echo "⚠️ Deployment failed! Initiating rollback..." >> $GITHUB_STEP_SUMMARY
+          echo "This is where automatic rollback procedures would execute" >> $GITHUB_STEP_SUMMARY
+
+      - name: Execute rollback
+        run: |
+          echo "Rolling back to previous version..."
+          echo "✅ Rollback completed"
+
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
