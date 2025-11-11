@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Mapping, cast
 
-import mixpanel
+import mixpanel  # type: ignore[import-untyped]
 import structlog
-from amplitude import Amplitude, BaseEvent, Identify
+from amplitude import Amplitude, BaseEvent, Identify  # type: ignore[import-untyped]
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -170,7 +170,9 @@ class AnalyticsService:
                 )
                 return {"status": "success", "sandbox": True}
 
-            return response
+            if isinstance(response, dict):
+                return cast(ProviderResponse, response)
+            return {"status": "success"}
 
         except Exception as e:
             logger.error(
@@ -355,13 +357,13 @@ class AnalyticsService:
                         responses.append(("mixpanel", response))
 
                 # Mark as processed
-                provider_response_payload: dict[str, ProviderResponseList] = {
+                provider_response_payload: Mapping[str, object] = {
                     "responses": responses
                 }
                 await mark_event_processed(
                     session=session,
                     event_id=event.id,
-                    provider_response=provider_response_payload,
+                    provider_response=dict(provider_response_payload),
                 )
                 processed_count += 1
 

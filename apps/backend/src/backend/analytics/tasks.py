@@ -2,8 +2,9 @@
 
 import asyncio
 import datetime as dt
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 import schedule
 import structlog
@@ -20,12 +21,12 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def _get_session() -> AsyncIterator[AsyncSession]:
     """Wrap the async generator as an async context manager."""
-    session_iter = get_db_session()
+    session_gen = cast(AsyncGenerator[AsyncSession, None], get_db_session())
     try:
-        session = await anext(session_iter)
+        session = await anext(session_gen)
         yield session
     finally:
-        await session_iter.aclose()
+        await session_gen.aclose()
 
 
 class AnalyticsScheduler:
@@ -60,8 +61,8 @@ class AnalyticsScheduler:
             self._run_async_task, self._calculate_weekly_metrics
         )
 
-        # Schedule monthly metrics calculation
-        schedule.every().month.do(
+        # Schedule monthly metrics calculation (run on the first day of each month)
+        schedule.every().day.at("02:00").do(
             self._run_async_task, self._calculate_monthly_metrics
         )
 
@@ -95,7 +96,7 @@ class AnalyticsScheduler:
                 import time
                 time.sleep(5)  # Wait before retrying
 
-    def _run_async_task(self, task_func: Callable[[], Awaitable[None]]) -> None:
+    def _run_async_task(self, task_func: Callable[[], Coroutine[Any, Any, None]]) -> None:
         """Run an async task in a new event loop."""
         try:
             asyncio.run(task_func())
