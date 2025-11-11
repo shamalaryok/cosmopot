@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import cast
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,7 +54,7 @@ def get_rate_limiter(request: Request) -> RateLimiter:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Rate limiter is not configured",
         )
-    return cast(RateLimiter, limiter_obj)
+    return limiter_obj
 
 
 def get_current_user(request: Request) -> CurrentUser:
@@ -65,10 +64,13 @@ def get_current_user(request: Request) -> CurrentUser:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
-    return cast(CurrentUser, current_user_obj)
+    return current_user_obj
 
 
-def require_roles(*roles: UserRole) -> Callable[[CurrentUser], Awaitable[CurrentUser]]:
+RoleRequirementDependency = Callable[[], Awaitable[CurrentUser]]
+
+
+def require_roles(*roles: UserRole) -> RoleRequirementDependency:
     async def _dependency(
         current_user: CurrentUser = Depends(get_current_user),
     ) -> CurrentUser:

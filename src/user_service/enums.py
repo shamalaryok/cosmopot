@@ -80,8 +80,8 @@ class GenerationTaskStatus(StrEnum):
     FAILED = "failed"
     CANCELED = "canceled"
 
-    _LEGACY_ALIASES: ClassVar[dict[str, GenerationTaskStatus]]
-    SUCCEEDED: ClassVar[GenerationTaskStatus]
+    _LEGACY_ALIASES: ClassVar[dict[str, "GenerationTaskStatus"]] = {}
+    SUCCEEDED: ClassVar["GenerationTaskStatus"]
 
     @classmethod
     def _missing_(cls, value: object) -> GenerationTaskStatus | None:
@@ -89,7 +89,7 @@ class GenerationTaskStatus(StrEnum):
             legacy = cls._LEGACY_ALIASES.get(value.lower())
             if legacy is not None:
                 return legacy
-        return super()._missing_(value)
+        return None
 
     @classmethod
     def _get_legacy_aliases(cls) -> dict[str, GenerationTaskStatus]:
