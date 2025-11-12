@@ -42,15 +42,13 @@ class Referral(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         GUID(),
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     referred_user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(),
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
-    referral_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    referral_code: Mapped[str] = mapped_column(String(32), nullable=False)
     tier: Mapped[ReferralTier] = mapped_column(
         Enum(ReferralTier, name="referral_tier", native_enum=False),
         nullable=False,
@@ -87,19 +85,16 @@ class ReferralEarning(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         GUID(),
         ForeignKey("referrals.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(),
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     payment_id: Mapped[uuid.UUID] = mapped_column(
         GUID(),
         ForeignKey("payments.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     percentage: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -126,7 +121,6 @@ class ReferralWithdrawal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         GUID(),
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     status: Mapped[WithdrawalStatus] = mapped_column(

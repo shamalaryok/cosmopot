@@ -24,7 +24,13 @@ class MetadataAliasMixin:
     _metadata_marker: ClassVar[object] = object()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Wrap the class __init__ to handle metadata argument transformation."""
+        """Wrap the class __init__ to handle metadata argument transformation.
+        
+        This method automatically wraps the __init__ of any subclass to intercept
+        the 'metadata' kwarg and remap it to 'meta_data' before calling the
+        original __init__. This avoids conflicts with SQLAlchemy's class-level
+        'metadata' attribute while maintaining backward compatibility.
+        """
         super().__init_subclass__(**kwargs)
         original_init = cast(Callable[..., None], cls.__init__)
 
@@ -44,8 +50,9 @@ class MetadataAliasMixin:
                 init_kwargs["meta_data"] = cls._coerce_metadata(metadata_value)
             original_init(self, *args, **init_kwargs)
 
-        wrapped_init.__metadata_alias_wrapped__ = True
-        cls.__init__ = wrapped_init
+        # Cast to Any to avoid mypy error when setting custom attribute on function
+        cast(Any, wrapped_init).__metadata_alias_wrapped__ = True
+        setattr(cls, "__init__", cast(Any, wrapped_init))
 
     @property
     def metadata_dict(self) -> dict[str, Any]:
