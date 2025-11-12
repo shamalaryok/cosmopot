@@ -79,14 +79,13 @@ class GenerationTaskStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELED = "canceled"
-
-    _LEGACY_ALIASES: ClassVar[dict[str, "GenerationTaskStatus"]] = {}
-    SUCCEEDED: ClassVar["GenerationTaskStatus"]
+    SUCCEEDED = COMPLETED
 
     @classmethod
     def _missing_(cls, value: object) -> GenerationTaskStatus | None:
         if isinstance(value, str):
-            legacy = cls._LEGACY_ALIASES.get(value.lower())
+            legacy_aliases = {"succeeded": cls.COMPLETED}
+            legacy = legacy_aliases.get(value.lower())
             if legacy is not None:
                 return legacy
         return None
@@ -94,7 +93,7 @@ class GenerationTaskStatus(StrEnum):
     @classmethod
     def _get_legacy_aliases(cls) -> dict[str, GenerationTaskStatus]:
         """Return the legacy alias mapping."""
-        return cls._LEGACY_ALIASES
+        return {"succeeded": cls.COMPLETED}
 
     @classmethod
     def get_by_code(cls, code: str) -> GenerationTaskStatus:
@@ -153,13 +152,6 @@ class GenerationTaskStatus(StrEnum):
         raise ValueError(
             f"status must be a GenerationTaskStatus or string, got {type(status).__name__}"
         )
-
-
-GenerationTaskStatus._LEGACY_ALIASES = {
-    "succeeded": GenerationTaskStatus.COMPLETED,
-}
-# Set up the deprecated SUCCEEDED alias to point to COMPLETED
-GenerationTaskStatus.SUCCEEDED = GenerationTaskStatus.COMPLETED
 
 
 class GenerationTaskSource(StrEnum):

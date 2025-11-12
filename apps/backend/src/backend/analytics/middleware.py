@@ -164,7 +164,9 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
         # Fall back to client IP
         client = getattr(request, "client", None)
         if client is not None:
-            return client.host
+            host = getattr(client, "host", None)
+            if isinstance(host, str):
+                return host
 
         return None
 

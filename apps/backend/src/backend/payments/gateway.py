@@ -21,6 +21,14 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - stripe >=7.0
 from .exceptions import PaymentGatewayError
 from .types import PaymentProviderResponse, ProviderPayload
 
+__all__ = [
+    "PaymentGateway",
+    "YooKassaGateway",
+    "StripeGateway",
+    "PaymentProviderResponse",
+    "ProviderPayload",
+]
+
 
 class PaymentGateway(Protocol):
     """Protocol describing the operations required from a payment provider."""

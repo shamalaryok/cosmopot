@@ -206,7 +206,7 @@ class ReferralService:
         self, session: AsyncSession, payment: Payment
     ) -> list[ReferralEarning]:
         """Create referral earnings for a successful payment."""
-        earnings = []
+        earnings: list[ReferralEarning] = []
         
         # Find the referral relationship for the paying user
         referral_stmt = select(Referral).where(
