@@ -18,8 +18,7 @@ from backend.observability.metrics import (
 
 @pytest.mark.skip(
     reason=(
-        "Complex database and middleware setup required - "
-        "covered by integration tests"
+        "Complex database and middleware setup required - covered by integration tests"
     )
 )
 def test_metrics_endpoint_accessible() -> None:
@@ -224,9 +223,7 @@ def test_generation_api_requests_counter() -> None:
 
 def test_generation_tasks_enqueued_counter() -> None:
     """Test generation tasks enqueued counter."""
-    initial_count = (
-        REGISTRY.get_sample_value("generation_tasks_enqueued_total") or 0
-    )
+    initial_count = REGISTRY.get_sample_value("generation_tasks_enqueued_total") or 0
 
     GENERATION_TASKS_ENQUEUED_TOTAL.inc()
 
