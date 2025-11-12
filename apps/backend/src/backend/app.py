@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
@@ -25,6 +27,15 @@ from backend.observability import (
 )
 from backend.security import RateLimitMiddleware
 
+FakeRedisFactory: type[Redis] | None = None
+
+try:
+    from fakeredis.aioredis import FakeRedis as _FakeRedis
+
+    FakeRedisFactory = _FakeRedis
+except ModuleNotFoundError:
+    pass
+
 
 def _register_middlewares(
     app: FastAPI, settings: Settings, token_service: TokenService
@@ -38,13 +49,21 @@ def _register_middlewares(
             allow_headers=["*"],
         )
 
-    redis_client: Redis = Redis.from_url(settings.redis.url, decode_responses=False)
+    redis_url = settings.redis.url
+    scheme = (urlparse(redis_url).scheme or "").lower()
+    if scheme in {"fakeredis", "memory"}:
+        if FakeRedisFactory is None:
+            raise RuntimeError("fakeredis requested but fakeredis is not installed.")
+        redis_client: Redis = FakeRedisFactory()
+    else:
+        redis_client = Redis.from_url(redis_url, decode_responses=False)
+
     app.add_middleware(
         RateLimitMiddleware,
         redis_client=redis_client,
         global_requests_per_minute=settings.rate_limit.global_requests_per_minute,
         window_seconds=settings.rate_limit.window_seconds,
-    ) 
+    )
 
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
