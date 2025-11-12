@@ -26,7 +26,7 @@ class PaginationParams(BaseModel):
     def offset(self) -> int:
         """Calculate offset for SQL queries."""
         return (self.page - 1) * self.page_size
-    
+
     @property
     def limit(self) -> int:
         """Get limit for SQL queries."""
@@ -35,7 +35,7 @@ class PaginationParams(BaseModel):
 
 class PaginatedResponse(BaseModel, Generic[T]):
     """Paginated response model."""
-    
+
     items: list[T] = Field(..., description="List of items")
     total: int = Field(..., description="Total number of items")
     page: int = Field(..., description="Current page number")
@@ -53,10 +53,10 @@ async def paginate_query(
     count_stmt = stmt.order_by(None).with_only_columns(func.count())
     total_result = await session.execute(count_stmt)
     total = total_result.scalar() or 0
-    
+
     # Apply pagination and get items
     paginated_stmt = stmt.offset(pagination.offset).limit(pagination.limit)
     result = await session.execute(paginated_stmt)
     items = list(result.scalars().all())
-    
+
     return items, total

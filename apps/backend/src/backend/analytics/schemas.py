@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class AnalyticsEventBase(BaseModel):
     """Base analytics event schema."""
-    
+
     event_type: str = Field(..., description="Type of analytics event")
     event_data: dict[str, Any] = Field(
         default_factory=dict,
@@ -36,16 +36,16 @@ class AnalyticsEventBase(BaseModel):
 
 class AnalyticsEventCreate(AnalyticsEventBase):
     """Schema for creating analytics events."""
-    
+
     user_id: str | None = Field(default=None, description="User identifier")
     provider: str = Field(default="both", description="Analytics provider")
 
 
 class AnalyticsEventResponse(AnalyticsEventBase):
     """Schema for analytics event responses."""
-    
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str = Field(..., description="Event ID")
     user_id: str | None = Field(default=None, description="User identifier")
     provider: str = Field(..., description="Analytics provider")
@@ -94,7 +94,7 @@ class AggregatedMetricsResponse(AggregatedMetricsBase):
 
 class AnalyticsDashboardResponse(BaseModel):
     """Schema for analytics dashboard data."""
-    
+
     daily_active_users: int = Field(..., description="Daily active users")
     monthly_active_users: int = Field(..., description="Monthly active users")
     new_registrations_today: int = Field(
@@ -121,7 +121,7 @@ class AnalyticsDashboardResponse(BaseModel):
 
 class AnalyticsEventListResponse(BaseModel):
     """Schema for paginated analytics event list."""
-    
+
     events: list[AnalyticsEventResponse] = Field(
         ...,
         description="List of analytics events",
@@ -134,7 +134,7 @@ class AnalyticsEventListResponse(BaseModel):
 
 class AnalyticsMetricsResponse(BaseModel):
     """Schema for analytics metrics response."""
-    
+
     metrics: dict[str, Any] = Field(..., description="Calculated metrics")
     period: str = Field(..., description="Time period for metrics")
     start_date: date = Field(..., description="Start date for metrics")
@@ -143,7 +143,7 @@ class AnalyticsMetricsResponse(BaseModel):
 
 class AnalyticsConfigResponse(BaseModel):
     """Schema for analytics configuration response."""
-    
+
     enabled: bool = Field(..., description="Whether analytics is enabled")
     amplitude_configured: bool = Field(
         ...,

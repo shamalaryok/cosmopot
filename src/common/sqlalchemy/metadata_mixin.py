@@ -25,7 +25,7 @@ class MetadataAliasMixin:
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Wrap the class __init__ to handle metadata argument transformation.
-        
+
         This method automatically wraps the __init__ of any subclass to intercept
         the 'metadata' kwarg and remap it to 'meta_data' before calling the
         original __init__. This avoids conflicts with SQLAlchemy's class-level

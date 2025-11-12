@@ -21,92 +21,75 @@ if TYPE_CHECKING:
 GENERATION_REQUESTS_TOTAL = Counter(
     "generation_requests_total",
     "Total number of generation requests",
-    ["user_id", "status", "model_type"]
+    ["user_id", "status", "model_type"],
 )
 
 GENERATION_DURATION_SECONDS = Histogram(
     "generation_duration_seconds",
     "Time spent processing generation requests",
     ["user_id", "model_type"],
-    buckets=[1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, float("inf")]
+    buckets=[1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, float("inf")],
 )
 
 ACTIVE_GENERATIONS = Gauge(
-    "active_generations",
-    "Number of currently active generation tasks",
-    ["model_type"]
+    "active_generations", "Number of currently active generation tasks", ["model_type"]
 )
 
 PAYMENT_REQUESTS_TOTAL = Counter(
     "payment_requests_total",
     "Total number of payment requests",
-    ["provider", "currency", "status"]
+    ["provider", "currency", "status"],
 )
 
 PAYMENT_AMOUNT_TOTAL = Counter(
     "payment_amount_total",
     "Total amount processed in payments",
-    ["provider", "currency"]
+    ["provider", "currency"],
 )
 
 USER_REGISTRATIONS_TOTAL = Counter(
-    "user_registrations_total",
-    "Total number of user registrations",
-    ["source"]
+    "user_registrations_total", "Total number of user registrations", ["source"]
 )
 
 ACTIVE_USERS = Gauge(
     "active_users",
     "Number of active users",
-    ["timeframe"]  # 1h, 24h, 7d
+    ["timeframe"],  # 1h, 24h, 7d
 )
 
 QUEUE_DEPTH = Gauge(
-    "queue_depth",
-    "Number of items in processing queues",
-    ["queue_name"]
+    "queue_depth", "Number of items in processing queues", ["queue_name"]
 )
 
 DATABASE_CONNECTIONS_ACTIVE = Gauge(
-    "database_connections_active",
-    "Number of active database connections",
-    ["pool"]
+    "database_connections_active", "Number of active database connections", ["pool"]
 )
 
 DATABASE_CONNECTIONS_IDLE = Gauge(
-    "database_connections_idle",
-    "Number of idle database connections",
-    ["pool"]
+    "database_connections_idle", "Number of idle database connections", ["pool"]
 )
 
 CACHE_HITS_TOTAL = Counter(
-    "cache_hits_total",
-    "Total number of cache hits",
-    ["cache_type"]
+    "cache_hits_total", "Total number of cache hits", ["cache_type"]
 )
 
 CACHE_MISSES_TOTAL = Counter(
-    "cache_misses_total",
-    "Total number of cache misses",
-    ["cache_type"]
+    "cache_misses_total", "Total number of cache misses", ["cache_type"]
 )
 
 # Infrastructure metrics
-SYSTEM_CPU_USAGE = Gauge(
-    "system_cpu_usage_percent",
-    "CPU usage percentage"
-)
+SYSTEM_CPU_USAGE = Gauge("system_cpu_usage_percent", "CPU usage percentage")
 
 SYSTEM_MEMORY_USAGE = Gauge(
     "system_memory_usage_bytes",
     "Memory usage in bytes",
-    ["type"]  # used, available, cached
+    ["type"],  # used, available, cached
 )
 
 DISK_USAGE = Gauge(
     "disk_usage_bytes",
     "Disk usage in bytes",
-    ["mount_point", "type"]  # used, available
+    ["mount_point", "type"],  # used, available
 )
 
 

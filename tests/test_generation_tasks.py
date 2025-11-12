@@ -156,51 +156,32 @@ def test_schema_validates_s3_urls() -> None:
 
 
 def test_generation_task_status_helpers() -> None:
-    assert (
-        GenerationTaskStatus.get_by_code("pending") == GenerationTaskStatus.PENDING
-    )
-    assert (
-        GenerationTaskStatus.get_by_code("PENDING") == GenerationTaskStatus.PENDING
-    )
-    assert (
-        GenerationTaskStatus.get_by_code("Pending") == GenerationTaskStatus.PENDING
-    )
+    assert GenerationTaskStatus.get_by_code("pending") == GenerationTaskStatus.PENDING
+    assert GenerationTaskStatus.get_by_code("PENDING") == GenerationTaskStatus.PENDING
+    assert GenerationTaskStatus.get_by_code("Pending") == GenerationTaskStatus.PENDING
 
     assert (
-        GenerationTaskStatus.get_by_code("completed")
-        == GenerationTaskStatus.COMPLETED
+        GenerationTaskStatus.get_by_code("completed") == GenerationTaskStatus.COMPLETED
     )
     assert (
-        GenerationTaskStatus.get_by_code("COMPLETED")
-        == GenerationTaskStatus.COMPLETED
+        GenerationTaskStatus.get_by_code("COMPLETED") == GenerationTaskStatus.COMPLETED
     )
 
-    assert (
-        GenerationTaskStatus.get_by_code("failed") == GenerationTaskStatus.FAILED
-    )
-    assert (
-        GenerationTaskStatus.get_by_code("canceled") == GenerationTaskStatus.CANCELED
-    )
-    assert (
-        GenerationTaskStatus.get_by_code("queued") == GenerationTaskStatus.QUEUED
-    )
-    assert (
-        GenerationTaskStatus.get_by_code("running") == GenerationTaskStatus.RUNNING
-    )
+    assert GenerationTaskStatus.get_by_code("failed") == GenerationTaskStatus.FAILED
+    assert GenerationTaskStatus.get_by_code("canceled") == GenerationTaskStatus.CANCELED
+    assert GenerationTaskStatus.get_by_code("queued") == GenerationTaskStatus.QUEUED
+    assert GenerationTaskStatus.get_by_code("running") == GenerationTaskStatus.RUNNING
 
 
 def test_generation_task_status_legacy_aliases() -> None:
     assert (
-        GenerationTaskStatus.get_by_code("succeeded")
-        == GenerationTaskStatus.COMPLETED
+        GenerationTaskStatus.get_by_code("succeeded") == GenerationTaskStatus.COMPLETED
     )
     assert (
-        GenerationTaskStatus.get_by_code("SUCCEEDED")
-        == GenerationTaskStatus.COMPLETED
+        GenerationTaskStatus.get_by_code("SUCCEEDED") == GenerationTaskStatus.COMPLETED
     )
     assert (
-        GenerationTaskStatus.get_by_code("Succeeded")
-        == GenerationTaskStatus.COMPLETED
+        GenerationTaskStatus.get_by_code("Succeeded") == GenerationTaskStatus.COMPLETED
     )
 
     assert GenerationTaskStatus("succeeded") == GenerationTaskStatus.COMPLETED

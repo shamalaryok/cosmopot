@@ -32,6 +32,7 @@ try:
     from sentry_sdk.integrations.tornado import (
         TornadoIntegration as _TornadoIntegration,
     )
+
     _tornado_integration: type[SentryIntegration] | None = _TornadoIntegration
 except Exception:  # pragma: no cover - tornado is optional
     _tornado_integration = None
@@ -125,9 +126,7 @@ def configure_sentry(settings: SentrySettingsProtocol) -> None:
 
     sentry_sdk.init(
         dsn=settings.dsn.get_secret_value(),
-        environment=(
-            settings.environment or os.getenv("ENVIRONMENT", "development")
-        ),
+        environment=(settings.environment or os.getenv("ENVIRONMENT", "development")),
         release=settings.release or os.getenv("APP_VERSION", "unknown"),
         server_name=settings.server_name,
         dist=settings.dist,
@@ -153,12 +152,12 @@ def _before_send(
     # Filter out health check errors
     if not isinstance(event, dict):
         return event
-    
+
     request_obj = event.get("request", {})
     url_obj = request_obj.get("url", "") if isinstance(request_obj, dict) else ""
     if isinstance(url_obj, str) and url_obj.endswith("/health"):
         return None
-    
+
     # Filter out 404 errors (they're not usually actionable)
     exception_values = event.get("exception", {}).get("values", [{}])
     if exception_values and exception_values[0].get("type") == "NotFound":
@@ -177,7 +176,7 @@ def _before_breadcrumb(
     """Filter and modify breadcrumbs before sending to Sentry."""
     if not isinstance(breadcrumb, dict):
         return breadcrumb
-    
+
     # Filter out health check breadcrumbs
     data = breadcrumb.get("data", {})
     url = data.get("url", "") if isinstance(data, dict) else ""

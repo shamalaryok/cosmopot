@@ -105,11 +105,7 @@ def subscription_create_factory(
             if provider_metadata is not None
             else {"cycle": index}
         ),
-        metadata=(
-            dict(metadata)
-            if metadata is not None
-            else {"source": "tests"}
-        ),
+        metadata=(dict(metadata) if metadata is not None else {"source": "tests"}),
         current_period_start=start,
         current_period_end=end,
     )
@@ -128,15 +124,9 @@ def subscription_renew_factory(
         new_period_end=end,
         quota_limit=quota_limit,
         provider_data=(
-            dict(provider_data)
-            if provider_data is not None
-            else {"cycle": "renewal"}
+            dict(provider_data) if provider_data is not None else {"cycle": "renewal"}
         ),
-        metadata=(
-            dict(metadata)
-            if metadata is not None
-            else {"note": "renewal"}
-        ),
+        metadata=(dict(metadata) if metadata is not None else {"note": "renewal"}),
         reason=reason,
     )
 
@@ -165,11 +155,7 @@ def payment_create_factory(
             if provider_data is not None
             else {"processor": "stripe"}
         ),
-        metadata=(
-            dict(metadata)
-            if metadata is not None
-            else {"note": "test"}
-        ),
+        metadata=(dict(metadata) if metadata is not None else {"note": "test"}),
         paid_at=datetime.now(UTC),
     )
 
@@ -195,9 +181,7 @@ def transaction_create_factory(
         description=description or "Test transaction",
         provider_reference=provider_reference or f"txn_{index}",
         metadata=(
-            dict(metadata)
-            if metadata is not None
-            else {"note": "test-transaction"}
+            dict(metadata) if metadata is not None else {"note": "test-transaction"}
         ),
     )
 
@@ -258,9 +242,7 @@ def generation_task_create_factory(
         status=status,
         source=source,
         parameters=(
-            dict(parameters)
-            if parameters is not None
-            else {"size": "1024x1024"}
+            dict(parameters) if parameters is not None else {"size": "1024x1024"}
         ),
         result_parameters={},
         input_asset_url=f"s3://tasks/{index}/input.json",

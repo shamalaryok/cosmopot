@@ -161,7 +161,7 @@ class AnalyticsService:
             )
 
             response = self._amplitude_client.track(event)
-            
+
             if self.settings.analytics.sandbox_mode:
                 logger.info(
                     "Amplitude event (sandbox mode)",

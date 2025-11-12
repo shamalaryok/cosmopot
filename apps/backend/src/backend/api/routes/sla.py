@@ -15,10 +15,10 @@ logger = structlog.get_logger(__name__)
 @router.get("/status", summary="Get SLA compliance status")
 async def sla_status(settings: Settings = Depends(get_settings)) -> dict[str, object]:
     """Get current SLA compliance status."""
-    
+
     try:
         sla_result = await run_sla_check()
-        
+
         return {
             "status": "compliant" if sla_result["sla_met"] else "non_compliant",
             "availability_percent": sla_result["availability"] * 100,
@@ -30,7 +30,7 @@ async def sla_status(settings: Settings = Depends(get_settings)) -> dict[str, ob
             "timestamp": sla_result["timestamp"],
             "details": sla_result["details"] if settings.debug else [],
         }
-        
+
     except Exception as e:
         logger.error("sla_check_failed", error=str(e))
         return {
@@ -44,11 +44,11 @@ async def uptime_status(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     """Get uptime check results for all endpoints."""
-    
+
     try:
         monitor = await get_synthetic_monitor()
         results = await monitor.run_checks()
-        
+
         return {
             "endpoints": results,
             "summary": {
@@ -58,7 +58,7 @@ async def uptime_status(
             },
             "timestamp": results[0]["timestamp"] if results else None,
         }
-        
+
     except Exception as e:
         logger.error("uptime_check_failed", error=str(e))
         return {

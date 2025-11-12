@@ -6,7 +6,7 @@ from .service import ReferralService, UserProtocol
 
 __all__ = [
     "ReferralTier",
-    "WithdrawalStatus", 
+    "WithdrawalStatus",
     "Referral",
     "ReferralEarning",
     "ReferralWithdrawal",

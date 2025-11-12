@@ -111,9 +111,7 @@ async def handle_stripe_webhook(
         ) from exc
 
     try:
-        await payment_service.process_webhook(
-            session, payload, PaymentProvider.STRIPE
-        )
+        await payment_service.process_webhook(session, payload, PaymentProvider.STRIPE)
         await session.commit()
     except PaymentNotFoundError as exc:
         await session.rollback()

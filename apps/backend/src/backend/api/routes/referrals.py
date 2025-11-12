@@ -37,9 +37,7 @@ router = APIRouter(prefix="/api/v1/referrals", tags=["referrals"])
 def _map_withdrawal_to_response(withdrawal: ReferralWithdrawal) -> WithdrawalResponse:
     """Map withdrawal model to response schema."""
     processed_at = (
-        withdrawal.processed_at.isoformat()
-        if withdrawal.processed_at
-        else None
+        withdrawal.processed_at.isoformat() if withdrawal.processed_at else None
     )
     return WithdrawalResponse(
         id=str(withdrawal.id),
@@ -65,21 +63,21 @@ async def get_referral_code(
 ) -> ReferralCodeResponse:
     """Get the current user's referral code and referral URL."""
     await rate_limiter.check("referrals:get_code", str(current_user.id))
-    
+
     # Track referral code access
     analytics_tracker = AnalyticsTracker(analytics_service, session)
     await analytics_tracker.track_feature_usage(
         user_id=str(current_user.id),
         feature_name="referral_code_access",
     )
-    
+
     referral_service = ReferralService()
     referral_code = await referral_service.get_referral_code(session, current_user)
-    
+
     # Build referral URL
     base_url = str(settings.backend_base_url)
     referral_url = f"{base_url}/signup?ref={referral_code}"
-    
+
     return ReferralCodeResponse(
         referral_code=referral_code,
         referral_url=referral_url,
@@ -98,10 +96,10 @@ async def get_referral_stats(
 ) -> ReferralStatsResponse:
     """Get detailed referral statistics for the current user."""
     await rate_limiter.check("referrals:get_stats", str(current_user.id))
-    
+
     referral_service = ReferralService()
     stats = await referral_service.get_referral_stats(session, current_user)
-    
+
     return ReferralStatsResponse(
         referral_code=stats.referral_code,
         total_earnings=stats.total_earnings,
@@ -127,9 +125,9 @@ async def request_withdrawal(
 ) -> WithdrawalResponse:
     """Request a withdrawal of available referral earnings."""
     await rate_limiter.check("referrals:withdraw", str(current_user.id))
-    
+
     referral_service = ReferralService()
-    
+
     try:
         service_request = ServiceWithdrawalRequest(
             amount=payload.amount,
@@ -141,14 +139,11 @@ async def request_withdrawal(
         await session.commit()
     except WithdrawalInsufficientFundsError as exc:
         await session.rollback()
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
-        ) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception:
         await session.rollback()
         raise
-    
+
     await session.refresh(withdrawal)
     return _map_withdrawal_to_response(withdrawal)
 
@@ -167,16 +162,16 @@ async def get_withdrawals(
 ) -> WithdrawalListResponse:
     """Get the current user's withdrawal request history."""
     await rate_limiter.check("referrals:get_withdrawals", str(current_user.id))
-    
+
     referral_service = ReferralService()
     withdrawals = await referral_service.get_user_withdrawals(session, current_user)
-    
+
     # Apply pagination
-    paginated_withdrawals = withdrawals[offset:offset + limit]
-    
+    paginated_withdrawals = withdrawals[offset : offset + limit]
+
     # Count pending withdrawals
     pending_count = sum(1 for w in withdrawals if w.status.value == "pending")
-    
+
     return WithdrawalListResponse(
         withdrawals=[_map_withdrawal_to_response(w) for w in paginated_withdrawals],
         total=len(withdrawals),
@@ -197,9 +192,9 @@ async def apply_referral_code(
 ) -> None:
     """Apply a referral code to the current user during registration."""
     await rate_limiter.check("referrals:apply_code", str(current_user.id))
-    
+
     referral_service = ReferralService()
-    
+
     try:
         referral = await referral_service.process_referral_code(
             session, referral_code, current_user
@@ -208,10 +203,7 @@ async def apply_referral_code(
             await session.commit()
     except ReferralCodeNotFoundError as exc:
         await session.rollback()
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            detail=str(exc)
-        ) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception:
         await session.rollback()
         raise

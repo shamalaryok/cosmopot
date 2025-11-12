@@ -46,9 +46,7 @@ def test_no_duplicate_indices_per_table():
         duplicates = {name: count for name, count in name_counter.items() if count > 1}
 
         if duplicates:
-            errors.append(
-                f"Table '{table_name}' has duplicate indices: {duplicates}"
-            )
+            errors.append(f"Table '{table_name}' has duplicate indices: {duplicates}")
 
     assert not errors, "\n".join(errors)
 

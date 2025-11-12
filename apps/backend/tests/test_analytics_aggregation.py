@@ -90,12 +90,15 @@ class TestAnalyticsAggregationService:
         mock_session = AsyncMock()
 
         with (
-            patch.object(aggregation_service, "_calculate_active_users_in_period")
-            as mock_active_users,
-            patch.object(aggregation_service, "_calculate_revenue_in_period")
-            as mock_revenue,
-            patch.object(aggregation_service, "_calculate_new_users_in_period")
-            as mock_new_users,
+            patch.object(
+                aggregation_service, "_calculate_active_users_in_period"
+            ) as mock_active_users,
+            patch.object(
+                aggregation_service, "_calculate_revenue_in_period"
+            ) as mock_revenue,
+            patch.object(
+                aggregation_service, "_calculate_new_users_in_period"
+            ) as mock_new_users,
             patch(
                 "backend.analytics.aggregation.create_or_update_aggregated_metrics"
             ) as mock_create,
@@ -123,15 +126,19 @@ class TestAnalyticsAggregationService:
         mock_session = AsyncMock()
 
         with (
-            patch.object(aggregation_service, "_calculate_active_users_in_period")
-            as mock_active_users,
-            patch.object(aggregation_service, "_calculate_revenue_in_period")
-            as mock_revenue,
-            patch.object(aggregation_service, "_calculate_new_users_in_period")
-            as mock_new_users,
+            patch.object(
+                aggregation_service, "_calculate_active_users_in_period"
+            ) as mock_active_users,
+            patch.object(
+                aggregation_service, "_calculate_revenue_in_period"
+            ) as mock_revenue,
+            patch.object(
+                aggregation_service, "_calculate_new_users_in_period"
+            ) as mock_new_users,
             patch.object(aggregation_service, "_calculate_churn_rate") as mock_churn,
-            patch.object(aggregation_service, "_calculate_ltv_cac_ratio")
-            as mock_ltv_cac,
+            patch.object(
+                aggregation_service, "_calculate_ltv_cac_ratio"
+            ) as mock_ltv_cac,
             patch(
                 "backend.analytics.aggregation.create_or_update_aggregated_metrics"
             ) as mock_create,
@@ -163,10 +170,12 @@ class TestAnalyticsAggregationService:
         mock_session = AsyncMock()
 
         with (
-            patch.object(aggregation_service, "_calculate_new_registrations")
-            as mock_registrations,
-            patch.object(aggregation_service, "_calculate_successful_payments")
-            as mock_payments,
+            patch.object(
+                aggregation_service, "_calculate_new_registrations"
+            ) as mock_registrations,
+            patch.object(
+                aggregation_service, "_calculate_successful_payments"
+            ) as mock_payments,
         ):
             calculate_conversion = (
                 aggregation_service._calculate_signup_to_payment_conversion

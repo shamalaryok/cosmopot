@@ -52,9 +52,7 @@ class AnalyticsAggregationService:
         metrics["dau"] = _as_metric_value(dau_value)
 
         # New User Registrations
-        new_registrations_value = await self._calculate_new_registrations(
-            session, date
-        )
+        new_registrations_value = await self._calculate_new_registrations(session, date)
         metrics["new_registrations"] = _as_metric_value(new_registrations_value)
 
         # Generation Metrics
@@ -64,9 +62,7 @@ class AnalyticsAggregationService:
         generations_failed_value = await self._calculate_generations_failed(
             session, date
         )
-        metrics["generations_completed"] = _as_metric_value(
-            generations_completed_value
-        )
+        metrics["generations_completed"] = _as_metric_value(generations_completed_value)
         metrics["generations_failed"] = _as_metric_value(generations_failed_value)
 
         # Payment Metrics
@@ -80,12 +76,10 @@ class AnalyticsAggregationService:
         metrics["failed_payments"] = _as_metric_value(failed_payments_value)
 
         # Subscription Metrics
-        new_subscriptions_value = await self._calculate_new_subscriptions(
-            session, date
-        )
+        new_subscriptions_value = await self._calculate_new_subscriptions(session, date)
         metrics["new_subscriptions"] = _as_metric_value(new_subscriptions_value)
-        cancelled_subscriptions_value = (
-            await self._calculate_cancelled_subscriptions(session, date)
+        cancelled_subscriptions_value = await self._calculate_cancelled_subscriptions(
+            session, date
         )
         metrics["cancelled_subscriptions"] = _as_metric_value(
             cancelled_subscriptions_value
@@ -220,9 +214,7 @@ class AnalyticsAggregationService:
         churn_rate = _as_metric_value(churn_rate_value)
 
         # LTV/CAC ratio (simplified calculation)
-        ltv_cac_ratio_value = await self._calculate_ltv_cac_ratio(
-            session, month_end
-        )
+        ltv_cac_ratio_value = await self._calculate_ltv_cac_ratio(session, month_end)
         ltv_cac_ratio = _as_metric_value(ltv_cac_ratio_value)
 
         metrics: AggregatedMetrics = {
@@ -253,9 +245,7 @@ class AnalyticsAggregationService:
 
     async def _calculate_dau(self, session: AsyncSession, date: dt.date) -> int:
         """Calculate Daily Active Users."""
-        start_datetime = dt.datetime.combine(date, dt.time.min).replace(
-            tzinfo=dt.UTC
-        )
+        start_datetime = dt.datetime.combine(date, dt.time.min).replace(tzinfo=dt.UTC)
         end_datetime = dt.datetime.combine(date, dt.time.max).replace(tzinfo=dt.UTC)
         stmt = (
             select(func.count(func.distinct(User.id)))
@@ -275,19 +265,12 @@ class AnalyticsAggregationService:
         self, session: AsyncSession, date: dt.date
     ) -> int:
         """Calculate new user registrations for the date."""
-        start_datetime = dt.datetime.combine(
-            date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
+        start_datetime = dt.datetime.combine(date, dt.time.min).replace(tzinfo=dt.UTC)
+        end_datetime = dt.datetime.combine(date, dt.time.max).replace(tzinfo=dt.UTC)
 
-        stmt = (
-            select(func.count(User.id))
-            .where(
-                User.created_at >= start_datetime,
-                User.created_at <= end_datetime,
-            )
+        stmt = select(func.count(User.id)).where(
+            User.created_at >= start_datetime,
+            User.created_at <= end_datetime,
         )
 
         result = await session.execute(stmt)
@@ -321,20 +304,13 @@ class AnalyticsAggregationService:
 
     async def _calculate_revenue(self, session: AsyncSession, date: dt.date) -> Decimal:
         """Calculate total revenue for the date."""
-        start_datetime = dt.datetime.combine(
-            date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
-        
-        stmt = (
-            select(func.sum(Payment.amount))
-            .where(
-                Payment.created_at >= start_datetime,
-                Payment.created_at <= end_datetime,
-                Payment.status == "succeeded",  # Assuming status field exists
-            )
+        start_datetime = dt.datetime.combine(date, dt.time.min).replace(tzinfo=dt.UTC)
+        end_datetime = dt.datetime.combine(date, dt.time.max).replace(tzinfo=dt.UTC)
+
+        stmt = select(func.sum(Payment.amount)).where(
+            Payment.created_at >= start_datetime,
+            Payment.created_at <= end_datetime,
+            Payment.status == "succeeded",  # Assuming status field exists
         )
 
         result = await session.execute(stmt)
@@ -351,20 +327,13 @@ class AnalyticsAggregationService:
         self, session: AsyncSession, date: dt.date
     ) -> int:
         """Calculate successful payments for the date."""
-        start_datetime = dt.datetime.combine(
-            date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
+        start_datetime = dt.datetime.combine(date, dt.time.min).replace(tzinfo=dt.UTC)
+        end_datetime = dt.datetime.combine(date, dt.time.max).replace(tzinfo=dt.UTC)
 
-        stmt = (
-            select(func.count(Payment.id))
-            .where(
-                Payment.created_at >= start_datetime,
-                Payment.created_at <= end_datetime,
-                Payment.status == "succeeded",
-            )
+        stmt = select(func.count(Payment.id)).where(
+            Payment.created_at >= start_datetime,
+            Payment.created_at <= end_datetime,
+            Payment.status == "succeeded",
         )
 
         result = await session.execute(stmt)
@@ -376,20 +345,13 @@ class AnalyticsAggregationService:
         self, session: AsyncSession, date: dt.date
     ) -> int:
         """Calculate failed payments for the date."""
-        start_datetime = dt.datetime.combine(
-            date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
+        start_datetime = dt.datetime.combine(date, dt.time.min).replace(tzinfo=dt.UTC)
+        end_datetime = dt.datetime.combine(date, dt.time.max).replace(tzinfo=dt.UTC)
 
-        stmt = (
-            select(func.count(Payment.id))
-            .where(
-                Payment.created_at >= start_datetime,
-                Payment.created_at <= end_datetime,
-                Payment.status == "failed",
-            )
+        stmt = select(func.count(Payment.id)).where(
+            Payment.created_at >= start_datetime,
+            Payment.created_at <= end_datetime,
+            Payment.status == "failed",
         )
 
         result = await session.execute(stmt)
@@ -425,19 +387,12 @@ class AnalyticsAggregationService:
         self, session: AsyncSession, date: dt.date
     ) -> int:
         """Calculate referrals sent for the date."""
-        start_datetime = dt.datetime.combine(
-            date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
+        start_datetime = dt.datetime.combine(date, dt.time.min).replace(tzinfo=dt.UTC)
+        end_datetime = dt.datetime.combine(date, dt.time.max).replace(tzinfo=dt.UTC)
 
-        stmt = (
-            select(func.count(Referral.id))
-            .where(
-                Referral.created_at >= start_datetime,
-                Referral.created_at <= end_datetime,
-            )
+        stmt = select(func.count(Referral.id)).where(
+            Referral.created_at >= start_datetime,
+            Referral.created_at <= end_datetime,
         )
 
         result = await session.execute(stmt)
@@ -463,10 +418,10 @@ class AnalyticsAggregationService:
         """Calculate signup to payment conversion rate for the date."""
         new_registrations = await self._calculate_new_registrations(session, date)
         successful_payments = await self._calculate_successful_payments(session, date)
-        
+
         if new_registrations == 0:
             return 0.0
-        
+
         return round((successful_payments / new_registrations) * 100, 2)
 
     async def _calculate_active_users_in_period(
@@ -474,19 +429,14 @@ class AnalyticsAggregationService:
     ) -> int:
         """Calculate active users in a period."""
         # This is a simplified calculation
-        start_datetime = dt.datetime.combine(
-            start_date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            end_date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
-        
-        stmt = (
-            select(func.count(func.distinct(User.id)))
-            .where(
-                User.created_at >= start_datetime,
-                User.created_at <= end_datetime,
-            )
+        start_datetime = dt.datetime.combine(start_date, dt.time.min).replace(
+            tzinfo=dt.UTC
+        )
+        end_datetime = dt.datetime.combine(end_date, dt.time.max).replace(tzinfo=dt.UTC)
+
+        stmt = select(func.count(func.distinct(User.id))).where(
+            User.created_at >= start_datetime,
+            User.created_at <= end_datetime,
         )
 
         result = await session.execute(stmt)
@@ -498,20 +448,15 @@ class AnalyticsAggregationService:
         self, session: AsyncSession, start_date: dt.date, end_date: dt.date
     ) -> Decimal:
         """Calculate total revenue in a period."""
-        start_datetime = dt.datetime.combine(
-            start_date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            end_date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
-        
-        stmt = (
-            select(func.sum(Payment.amount))
-            .where(
-                Payment.created_at >= start_datetime,
-                Payment.created_at <= end_datetime,
-                Payment.status == "succeeded",
-            )
+        start_datetime = dt.datetime.combine(start_date, dt.time.min).replace(
+            tzinfo=dt.UTC
+        )
+        end_datetime = dt.datetime.combine(end_date, dt.time.max).replace(tzinfo=dt.UTC)
+
+        stmt = select(func.sum(Payment.amount)).where(
+            Payment.created_at >= start_datetime,
+            Payment.created_at <= end_datetime,
+            Payment.status == "succeeded",
         )
 
         result = await session.execute(stmt)
@@ -528,19 +473,14 @@ class AnalyticsAggregationService:
         self, session: AsyncSession, start_date: dt.date, end_date: dt.date
     ) -> int:
         """Calculate new users in a period."""
-        start_datetime = dt.datetime.combine(
-            start_date, dt.time.min
-        ).replace(tzinfo=dt.UTC)
-        end_datetime = dt.datetime.combine(
-            end_date, dt.time.max
-        ).replace(tzinfo=dt.UTC)
-        
-        stmt = (
-            select(func.count(User.id))
-            .where(
-                User.created_at >= start_datetime,
-                User.created_at <= end_datetime,
-            )
+        start_datetime = dt.datetime.combine(start_date, dt.time.min).replace(
+            tzinfo=dt.UTC
+        )
+        end_datetime = dt.datetime.combine(end_date, dt.time.max).replace(tzinfo=dt.UTC)
+
+        stmt = select(func.count(User.id)).where(
+            User.created_at >= start_datetime,
+            User.created_at <= end_datetime,
         )
 
         result = await session.execute(stmt)
@@ -555,19 +495,17 @@ class AnalyticsAggregationService:
         # This is a very simplified churn calculation
         # In practice, you'd want to track last activity dates per user
         thirty_days_ago = as_of_date - dt.timedelta(days=30)
-        
+
         # Count users created more than 30 days ago
-        stmt_old_users = (
-            select(func.count(User.id))
-            .where(User.created_at < thirty_days_ago)
+        stmt_old_users = select(func.count(User.id)).where(
+            User.created_at < thirty_days_ago
         )
-        
+
         # Count users with activity in the last 30 days
-        stmt_active_users = (
-            select(func.count(func.distinct(User.id)))
-            .where(User.created_at >= thirty_days_ago)
+        stmt_active_users = select(func.count(func.distinct(User.id))).where(
+            User.created_at >= thirty_days_ago
         )
-        
+
         old_users_result = await session.execute(stmt_old_users)
         active_users_result = await session.execute(stmt_active_users)
 
@@ -575,10 +513,10 @@ class AnalyticsAggregationService:
         active_users_raw = active_users_result.scalar_one()
         old_users: int = int(old_users_raw)
         active_users: int = int(active_users_raw)
-        
+
         if old_users == 0:
             return 0.0
-        
+
         # Simplified churn: users who haven't been active
         churned_users = max(0, old_users - active_users)
         return round((churned_users / old_users) * 100, 2)
@@ -590,7 +528,7 @@ class AnalyticsAggregationService:
         # This is a very simplified calculation
         # LTV: Average revenue per user over their lifetime
         # CAC: Customer acquisition cost
-        
+
         # For simplicity, we'll use monthly revenue / new users as a proxy
         month_start = as_of_date.replace(day=1)
         monthly_revenue = await self._calculate_revenue_in_period(
@@ -599,33 +537,33 @@ class AnalyticsAggregationService:
         monthly_new_users = await self._calculate_new_users_in_period(
             session, month_start, as_of_date
         )
-        
+
         if monthly_new_users == 0:
             return 0.0
-        
+
         # Simplified CAC (you'd want to include marketing costs in reality)
         cac = Decimal("50.0")  # Placeholder value
-        
+
         # Simplified LTV (monthly revenue * average months * profit margin)
         avg_monthly_revenue_per_user = monthly_revenue / monthly_new_users
         ltv = (
             avg_monthly_revenue_per_user * 12 * Decimal("0.7")
         )  # 12 months * 70% margin
-        
+
         if cac == 0:
             return 0.0
-        
+
         return float(ltv / cac)
 
     async def cleanup_old_data(self, session: AsyncSession, retention_days: int) -> int:
         """Clean up old analytics data based on retention policy."""
         deleted_count = await delete_old_events(session, retention_days)
         await session.commit()
-        
+
         self.logger.info(
             "Analytics cleanup completed",
             deleted_events=deleted_count,
             retention_days=retention_days,
         )
-        
+
         return deleted_count

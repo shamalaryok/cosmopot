@@ -67,6 +67,7 @@ async def track_event(
 
         # Convert string provider to enum
         from backend.analytics.enums import AnalyticsProvider
+
         try:
             provider = AnalyticsProvider(event_data.provider)
         except ValueError:
@@ -186,7 +187,7 @@ async def get_dashboard_metrics(
     try:
         # Get recent metrics
         from backend.analytics.repository import get_aggregated_metrics
-        
+
         # Daily metrics for today
         daily_metrics = await get_aggregated_metrics(
             session=session,
@@ -194,7 +195,7 @@ async def get_dashboard_metrics(
             start_date=today,
             end_date=today,
         )
-        
+
         # Monthly metrics
         monthly_metrics = await get_aggregated_metrics(
             session=session,
@@ -216,9 +217,7 @@ async def get_dashboard_metrics(
 
         # Calculate today's metrics
         daily_dau = get_metric_value(daily_metrics, "dau")
-        daily_new_registrations = get_metric_value(
-            daily_metrics, "new_registrations"
-        )
+        daily_new_registrations = get_metric_value(daily_metrics, "new_registrations")
         daily_revenue = get_metric_value(daily_metrics, "revenue")
         daily_conversion_rate = get_metric_value(
             daily_metrics, "signup_to_payment_conversion"
@@ -227,9 +226,7 @@ async def get_dashboard_metrics(
         # Get monthly metrics
         monthly_mau = get_metric_value(monthly_metrics, "mau")
         monthly_churn_rate = get_metric_value(monthly_metrics, "churn_rate")
-        monthly_ltv_cac_ratio = get_metric_value(
-            monthly_metrics, "ltv_cac_ratio"
-        )
+        monthly_ltv_cac_ratio = get_metric_value(monthly_metrics, "ltv_cac_ratio")
 
         return AnalyticsDashboardResponse(
             daily_active_users=int(daily_dau),
@@ -258,9 +255,7 @@ async def get_aggregated_metrics_endpoint(
     period: str | None = Query(
         None, description="Filter by period (daily, weekly, monthly)"
     ),
-    start_date: dt.date | None = Query(
-        None, description="Filter by start date"
-    ),
+    start_date: dt.date | None = Query(None, description="Filter by start date"),
     end_date: dt.date | None = Query(None, description="Filter by end date"),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -295,9 +290,7 @@ async def get_aggregated_metrics_endpoint(
 async def calculate_metrics(
     start_date: dt.date = Query(..., description="Start date for calculation"),
     end_date: dt.date = Query(..., description="End date for calculation"),
-    period: str = Query(
-        "daily", description="Period type (daily, weekly, monthly)"
-    ),
+    period: str = Query("daily", description="Period type (daily, weekly, monthly)"),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
@@ -316,7 +309,7 @@ async def calculate_metrics(
             )
 
         all_metrics = {}
-        
+
         if period == "daily":
             current_date = start_date
             while current_date <= end_date:
@@ -351,10 +344,8 @@ async def calculate_metrics(
             # Calculate for each month in the range
             current_date = start_date
             while current_date <= end_date:
-                monthly_metrics = (
-                    await aggregation_service.calculate_monthly_metrics(
-                        session, current_date.year, current_date.month
-                    )
+                monthly_metrics = await aggregation_service.calculate_monthly_metrics(
+                    session, current_date.year, current_date.month
                 )
                 monthly_key = f"{current_date.year}-{current_date.month:02d}"
                 all_metrics[monthly_key] = monthly_metrics
@@ -365,9 +356,7 @@ async def calculate_metrics(
                         year=current_date.year + 1, month=1
                     )
                 else:
-                    current_date = current_date.replace(
-                        month=current_date.month + 1
-                    )
+                    current_date = current_date.replace(month=current_date.month + 1)
 
         return AnalyticsMetricsResponse(
             metrics=all_metrics,

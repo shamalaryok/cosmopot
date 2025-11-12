@@ -201,14 +201,14 @@ async def register_user(
         signup_method="email",
         user_properties={"signup_source": "web"},
     )
-    
+
     try:
         user, token = await auth_service.register(
             session,
             email=payload.email,
             password=payload.password,
         )
-        
+
         # Track successful signup
         await analytics_tracker.track_signup(
             user_id=str(user.id),
@@ -280,7 +280,7 @@ async def login(
             user_agent=user_agent,
             ip_address=ip_address,
         )
-        
+
         # Track successful login
         await analytics_tracker.track_login(
             user_id=str(result.user.id),
@@ -288,7 +288,7 @@ async def login(
             user_agent=user_agent,
             ip_address=ip_address,
         )
-        
+
     except Exception as exc:
         # Track failed login
         await analytics_tracker.track_login(

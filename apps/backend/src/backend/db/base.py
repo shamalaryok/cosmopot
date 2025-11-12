@@ -30,7 +30,6 @@ metadata = MetaData(
 )
 
 
-
 class Base(DeclarativeBase):
     metadata: ClassVar[MetaData]
 

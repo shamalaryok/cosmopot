@@ -8,12 +8,14 @@ from pydantic import BaseModel, Field, field_validator
 
 class ReferralCodeResponse(BaseModel):
     """Response model for referral code endpoint."""
+
     referral_code: str = Field(..., description="User's unique referral code")
     referral_url: str = Field(..., description="Full referral URL")
 
 
 class ReferralStatsResponse(BaseModel):
     """Response model for referral statistics endpoint."""
+
     referral_code: str = Field(..., description="User's unique referral code")
     total_earnings: Decimal = Field(
         ...,
@@ -52,6 +54,7 @@ class ReferralStatsResponse(BaseModel):
 
 class WithdrawalRequest(BaseModel):
     """Request model for withdrawal endpoint."""
+
     amount: Decimal = Field(..., gt=0, description="Amount to withdraw")
     notes: str | None = Field(
         None,
@@ -72,6 +75,7 @@ class WithdrawalRequest(BaseModel):
 
 class WithdrawalResponse(BaseModel):
     """Response model for withdrawal endpoint."""
+
     id: str = Field(..., description="Withdrawal request ID")
     amount: Decimal = Field(..., description="Withdrawal amount")
     status: str = Field(..., description="Withdrawal status")
@@ -92,6 +96,7 @@ class WithdrawalResponse(BaseModel):
 
 class WithdrawalListResponse(BaseModel):
     """Response model for withdrawal list endpoint."""
+
     withdrawals: list[WithdrawalResponse] = Field(
         ...,
         description="List of withdrawal requests",
