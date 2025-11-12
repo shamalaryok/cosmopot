@@ -27,9 +27,13 @@ class GenerationTask(Base, MetadataAliasMixin, UUIDPrimaryKeyMixin, TimestampMix
     __table_args__ = (
         Index("ix_generation_tasks_user_id", "user_id"),
         Index("ix_generation_tasks_status", "status"),
+        Index("ix_generation_tasks_prompt_id", "prompt_id"),
     )
 
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    prompt_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("prompts.id", ondelete="CASCADE"), nullable=False
+    )
     prompt: Mapped[str] = mapped_column(String(1024), nullable=False)
     parameters: Mapped[dict[str, Any]] = mapped_column(
         JSONType(), default=dict, nullable=False
