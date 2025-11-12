@@ -230,11 +230,15 @@ def _consume_flash(request: Request) -> list[FlashMessage]:
     return messages
 
 
+def _make_flash(level: str, text: str) -> FlashMessage:
+    return {"level": level, "text": text}
+
+
 def _flash(request: Request, level: str, message: str) -> None:
     messages_raw = request.session.get("_messages")
     if not isinstance(messages_raw, list):
         messages_raw = []
-    flash_message: FlashMessage = {"level": level, "text": message}
+    flash_message = _make_flash(level, message)
     messages_raw.append(flash_message)
     request.session["_messages"] = messages_raw
 
@@ -272,6 +276,15 @@ def _normalise_auth_session(raw: Any) -> AuthSession | None:
         session["email"] = email
 
     return session
+
+
+def _session_user_payload(auth: AuthSession | None) -> UserPayload:
+    if not auth:
+        return cast(UserPayload, {})
+    user_value = auth.get("user")
+    if isinstance(user_value, dict):
+        return cast(UserPayload, user_value)
+    return cast(UserPayload, {})
 
 
 def _get_auth_session(request: Request) -> AuthSession | None:
@@ -340,7 +353,7 @@ def _clear_auth(request: Request) -> None:
 @app.get("/", response_class=HTMLResponse, name="home")
 async def home(
     request: Request, gateway: BackendGateway = Depends(get_gateway)
-) -> Response:
+) -> HTMLResponse:
     messages = _consume_flash(request)
     health: JSONDict | None = None
     error: str | None = None
@@ -401,7 +414,7 @@ async def login_submit(
     except BackendError as exc:
         context_messages: list[FlashMessage] = [
             *messages,
-            {"level": "error", "text": exc.message},
+            _make_flash("error", exc.message),
         ]
         context: dict[str, object] = {
             "request": request,
@@ -444,12 +457,7 @@ async def profile(
             url=request.url_for("login_page"), status_code=status.HTTP_303_SEE_OTHER
         )
 
-    cached_user_value = auth.get("user")
-    cached_user: UserPayload = (
-        cast(UserPayload, cached_user_value)
-        if isinstance(cached_user_value, dict)
-        else cast(UserPayload, {})
-    )
+    cached_user = _session_user_payload(auth)
     try:
         user_payload, tokens = await gateway.get_current_user(
             access_token=auth["access_token"],
@@ -467,7 +475,7 @@ async def profile(
             *messages,
             {"level": "error", "text": exc.message},
         ]
-        context: dict[str, object] = {
+        error_context: dict[str, object] = {
             "request": request,
             "messages": context_messages,
             "user": cached_user,
@@ -475,16 +483,16 @@ async def profile(
             "load_error": exc.message,
         }
         return templates.TemplateResponse(
-            "profile.html", context, status_code=status.HTTP_502_BAD_GATEWAY
+            "profile.html", error_context, status_code=status.HTTP_502_BAD_GATEWAY
         )
 
-    context: dict[str, object] = {
+    success_context: dict[str, object] = {
         "request": request,
         "messages": messages,
         "user": user_payload,
         "load_error": None,
     }
-    return templates.TemplateResponse("profile.html", context)
+    return templates.TemplateResponse("profile.html", success_context)
 
 
 @app.post("/profile", response_class=HTMLResponse)
@@ -505,12 +513,7 @@ async def update_profile(
             url=request.url_for("login_page"), status_code=status.HTTP_303_SEE_OTHER
         )
 
-    cached_user_value = auth.get("user")
-    cached_user: UserPayload = (
-        cast(UserPayload, cached_user_value)
-        if isinstance(cached_user_value, dict)
-        else cast(UserPayload, {})
-    )
+    cached_user = _session_user_payload(auth)
 
     payload = {
         "first_name": first_name,
@@ -572,12 +575,7 @@ async def generate_page(
             url=request.url_for("login_page"), status_code=status.HTTP_303_SEE_OTHER
         )
 
-    session_user = auth.get("user")
-    user_payload: UserPayload = (
-        cast(UserPayload, session_user)
-        if isinstance(session_user, dict)
-        else cast(UserPayload, {})
-    )
+    user_payload = _session_user_payload(auth)
     try:
         user_payload, tokens = await gateway.get_current_user(
             access_token=auth["access_token"],
@@ -585,13 +583,8 @@ async def generate_page(
         )
         _merge_auth_session(request, tokens=tokens, user_payload=user_payload)
     except BackendError as exc:
-        session_user = auth.get("user")
-        user_payload = (
-            cast(UserPayload, session_user)
-            if isinstance(session_user, dict)
-            else cast(UserPayload, {})
-        )
-        error_message: FlashMessage = {"level": "error", "text": exc.message}
+        user_payload = _session_user_payload(auth)
+        error_message = _make_flash("error", exc.message)
         messages.append(error_message)
     context: dict[str, object] = {
         "request": request,
@@ -688,15 +681,10 @@ async def generate_submit(
     if errors:
         error_messages: list[FlashMessage] = [
             *messages,
-            *({"level": "error", "text": msg} for msg in errors),
+            *[_make_flash("error", msg) for msg in errors],
         ]
-        cached_user_value = auth.get("user")
-        cached_user: UserPayload = (
-            cast(UserPayload, cached_user_value)
-            if isinstance(cached_user_value, dict)
-            else cast(UserPayload, {})
-        )
-        context: dict[str, object] = {
+        cached_user = _session_user_payload(auth)
+        validation_context: dict[str, object] = {
             "request": request,
             "messages": error_messages,
             "user": cached_user,
@@ -714,7 +702,7 @@ async def generate_submit(
             },
         }
         return templates.TemplateResponse(
-            "generate.html", context, status_code=status.HTTP_400_BAD_REQUEST
+            "generate.html", validation_context, status_code=status.HTTP_400_BAD_REQUEST
         )
 
     upload_tuple = (
@@ -736,17 +724,12 @@ async def generate_submit(
         )
         _merge_auth_session(request, tokens=tokens)
     except BackendError as exc:
-        cached_user_value = auth.get("user")
-        cached_user: UserPayload = (
-            cast(UserPayload, cached_user_value)
-            if isinstance(cached_user_value, dict)
-            else cast(UserPayload, {})
-        )
+        cached_user = _session_user_payload(auth)
         context_messages: list[FlashMessage] = [
             *messages,
-            {"level": "error", "text": exc.message},
+            _make_flash("error", exc.message),
         ]
-        context: dict[str, object] = {
+        error_context: dict[str, object] = {
             "request": request,
             "messages": context_messages,
             "user": cached_user,
@@ -764,7 +747,7 @@ async def generate_submit(
             },
         }
         return templates.TemplateResponse(
-            "generate.html", context, status_code=status.HTTP_400_BAD_REQUEST
+            "generate.html", error_context, status_code=status.HTTP_400_BAD_REQUEST
         )
 
     _flash(
@@ -810,7 +793,7 @@ async def history(
             *messages,
             {"level": "error", "text": exc.message},
         ]
-        context: dict[str, object] = {
+        error_context: dict[str, object] = {
             "request": request,
             "messages": context_messages,
             "items": [],
@@ -822,7 +805,7 @@ async def history(
             },
         }
         return templates.TemplateResponse(
-            "history.html", context, status_code=status.HTTP_502_BAD_GATEWAY
+            "history.html", error_context, status_code=status.HTTP_502_BAD_GATEWAY
         )
 
     items_value = payload.get("items")
@@ -851,13 +834,13 @@ async def history(
             "has_next": False,
         }
 
-    context: dict[str, object] = {
+    success_context: dict[str, object] = {
         "request": request,
         "messages": messages,
         "items": items,
         "pagination": pagination,
     }
-    return templates.TemplateResponse("history.html", context)
+    return templates.TemplateResponse("history.html", success_context)
 
 
 @app.get("/pricing", response_class=HTMLResponse, name="pricing")

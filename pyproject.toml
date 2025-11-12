@@ -90,7 +90,7 @@ files = [
     "src/user_service",
     "apps/backend/src/backend",
     "apps/bot/src/bot_runtime",
-    "backend.app",
+    "frontend/app",
     "migrations",
     "tests",
     "apps/backend/tests",
@@ -98,7 +98,7 @@ files = [
 ]
 exclude = [
     "^\\.venv/",
-    "^frontend/",
+    "^frontend/spa/",
 ]
 
 # Silence missing type information for third-party packages without stubs.
