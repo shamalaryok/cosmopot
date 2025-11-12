@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Mapping, cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 import mixpanel  # type: ignore[import-untyped]
 import structlog

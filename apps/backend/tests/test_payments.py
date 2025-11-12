@@ -27,7 +27,6 @@ from backend.payments.service import PaymentService
 from backend.payments.types import (
     PaymentProviderResponse,
     ProviderPayload,
-    YooKassaAmountPayload,
     YooKassaPaymentPayload,
 )
 from user_service.models import SubscriptionPlan, User

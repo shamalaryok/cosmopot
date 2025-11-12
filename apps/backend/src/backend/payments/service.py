@@ -7,37 +7,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Type, cast
-from types import ModuleType
+from typing import Any, cast
 
 import stripe
 import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-# Resilient import for Stripe signature verification errors
-StripeSignatureVerificationError: Type[Exception]
-
-_signature_verification_error = getattr(stripe, "SignatureVerificationError", None)
-if _signature_verification_error is None:
-    try:  # pragma: no cover - stripe <7.0 fallback
-        from stripe import error as stripe_error
-    except (ImportError, ModuleNotFoundError):  # pragma: no cover - stripe module unavailable
-        stripe_error = None
-    if stripe_error is not None:
-        _signature_verification_error = getattr(
-            stripe_error, "SignatureVerificationError", None
-        )
-
-if _signature_verification_error is None:
-    class _FallbackStripeSignatureVerificationError(Exception):
-        """Fallback Stripe signature verification error."""
-
-    StripeSignatureVerificationError = _FallbackStripeSignatureVerificationError
-else:
-    StripeSignatureVerificationError = cast(
-        Type[Exception], _signature_verification_error
-    )
 
 from backend.core.config import PaymentPlan, Settings
 from backend.payments.enums import PaymentEventType, PaymentProvider, PaymentStatus
@@ -59,6 +34,33 @@ from backend.payments.types import (
 )
 from backend.referrals.service import ReferralService
 from user_service.models import SubscriptionPlan, User
+
+# Resilient import for Stripe signature verification errors
+StripeSignatureVerificationError: type[Exception]
+
+_signature_verification_error = getattr(stripe, "SignatureVerificationError", None)
+if _signature_verification_error is None:
+    try:  # pragma: no cover - stripe <7.0 fallback
+        from stripe import error as stripe_error
+    except (
+        ImportError,
+        ModuleNotFoundError,
+    ):  # pragma: no cover - stripe module unavailable
+        stripe_error = None
+    if stripe_error is not None:
+        _signature_verification_error = getattr(
+            stripe_error, "SignatureVerificationError", None
+        )
+
+if _signature_verification_error is None:
+    class _FallbackStripeSignatureVerificationError(Exception):
+        """Fallback Stripe signature verification error."""
+
+    StripeSignatureVerificationError = _FallbackStripeSignatureVerificationError
+else:
+    StripeSignatureVerificationError = cast(
+        type[Exception], _signature_verification_error
+    )
 
 
 @dataclass(slots=True)

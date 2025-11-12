@@ -20,13 +20,11 @@ from backend.payments.exceptions import (
     PaymentGatewayError,
     PaymentPlanNotFoundError,
 )
+from backend.payments.models import Payment
 from backend.payments.service import PaymentService
 from user_service.models import User
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
-
-
-from backend.payments.models import Payment
 
 
 def _map_payment_to_response(payment: Payment) -> PaymentCreateResponse:

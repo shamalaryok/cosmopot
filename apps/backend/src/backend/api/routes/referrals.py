@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +23,12 @@ from backend.referrals.exceptions import (
     WithdrawalInsufficientFundsError,
 )
 from backend.referrals.models import ReferralWithdrawal
-from backend.referrals.service import ReferralService, WithdrawalRequest as ServiceWithdrawalRequest
+from backend.referrals.service import (
+    ReferralService,
+)
+from backend.referrals.service import (
+    WithdrawalRequest as ServiceWithdrawalRequest,
+)
 from user_service.models import User
 
 router = APIRouter(prefix="/api/v1/referrals", tags=["referrals"])

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import redis.asyncio as redis
-from redis.asyncio import Redis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
+from redis.asyncio import Redis
 
 import backend.analytics.models  # noqa: F401 - ensure analytics models are registered with SQLAlchemy metadata
 import backend.generation.models  # noqa: F401 - ensure generation models are registered

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Awaitable, Callable, MutableMapping, Sequence
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, cast
+from collections.abc import Awaitable, Callable, MutableMapping
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
 
 import sentry_sdk
 from sentry_sdk.integrations import Integration as SentryIntegration
@@ -181,7 +181,11 @@ def _before_breadcrumb(
     # Filter out health check breadcrumbs
     data = breadcrumb.get("data", {})
     url = data.get("url", "") if isinstance(data, dict) else ""
-    if breadcrumb.get("category") == "http" and isinstance(url, str) and "/health" in url:
+    if (
+        breadcrumb.get("category") == "http"
+        and isinstance(url, str)
+        and "/health" in url
+    ):
         return None
 
     # Filter out noisy breadcrumbs
