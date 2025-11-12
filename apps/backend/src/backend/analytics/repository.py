@@ -136,14 +136,11 @@ async def get_event_metrics(
     """Get metrics for a specific event type within a date range."""
     start_dt, end_dt = _date_bounds(start_date, end_date)
 
-    stmt = (
-        select(AnalyticsEventRecord)
-        .where(
-            AnalyticsEventRecord.event_type == event_type,
-            AnalyticsEventRecord.created_at >= start_dt,
-            AnalyticsEventRecord.created_at <= end_dt,
-            AnalyticsEventRecord.is_successful.is_(True),
-        )
+    stmt = select(AnalyticsEventRecord).where(
+        AnalyticsEventRecord.event_type == event_type,
+        AnalyticsEventRecord.created_at >= start_dt,
+        AnalyticsEventRecord.created_at <= end_dt,
+        AnalyticsEventRecord.is_successful.is_(True),
     )
 
     result = await session.execute(stmt)
@@ -170,13 +167,10 @@ async def create_or_update_aggregated_metrics(
     metadata: MetricMetadata | None = None,
 ) -> AggregatedMetrics:
     """Create or update aggregated metrics."""
-    stmt = (
-        select(AggregatedMetrics)
-        .where(
-            AggregatedMetrics.metric_date == metric_date,
-            AggregatedMetrics.metric_type == metric_type,
-            AggregatedMetrics.period == period,
-        )
+    stmt = select(AggregatedMetrics).where(
+        AggregatedMetrics.metric_date == metric_date,
+        AggregatedMetrics.metric_type == metric_type,
+        AggregatedMetrics.period == period,
     )
 
     result = await session.execute(stmt)

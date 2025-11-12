@@ -20,26 +20,26 @@ logger = structlog.get_logger(__name__)
 UPTIME_CHECK_SUCCESS = Counter(
     "uptime_check_success_total",
     "Total number of successful uptime checks",
-    ["endpoint", "region"]
+    ["endpoint", "region"],
 )
 
 UPTIME_CHECK_FAILURE = Counter(
     "uptime_check_failure_total",
     "Total number of failed uptime checks",
-    ["endpoint", "region", "error_type"]
+    ["endpoint", "region", "error_type"],
 )
 
 UPTIME_CHECK_DURATION = Histogram(
     "uptime_check_duration_seconds",
     "Duration of uptime checks",
     ["endpoint", "region"],
-    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, float("inf")]
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, float("inf")],
 )
 
 UPTIME_CHECK_STATUS = Gauge(
     "uptime_check_status",
     "Status of uptime checks (1=up, 0=down)",
-    ["endpoint", "region"]
+    ["endpoint", "region"],
 )
 
 
@@ -100,77 +100,61 @@ class SyntheticMonitor:
             add_breadcrumb(
                 category="synthetic_monitoring",
                 message=f"Checking endpoint {endpoint_name}",
-                level="info"
+                level="info",
             )
 
             response = await self.client.request(method, url)
             response_time = time.time() - start_time
-            
-            result.update({
-                "response_time": response_time,
-                "status_code": response.status_code,
-                "success": response.status_code == expected_status,
-            })
+
+            result.update(
+                {
+                    "response_time": response_time,
+                    "status_code": response.status_code,
+                    "success": response.status_code == expected_status,
+                }
+            )
 
             # Record metrics
-            UPTIME_CHECK_DURATION.labels(
-                endpoint=endpoint_name,
-                region=region
-            ).observe(response_time)
+            UPTIME_CHECK_DURATION.labels(endpoint=endpoint_name, region=region).observe(
+                response_time
+            )
 
             if result["success"]:
-                UPTIME_CHECK_SUCCESS.labels(
-                    endpoint=endpoint_name,
-                    region=region
-                ).inc()
-                UPTIME_CHECK_STATUS.labels(
-                    endpoint=endpoint_name,
-                    region=region
-                ).set(1)
+                UPTIME_CHECK_SUCCESS.labels(endpoint=endpoint_name, region=region).inc()
+                UPTIME_CHECK_STATUS.labels(endpoint=endpoint_name, region=region).set(1)
             else:
                 UPTIME_CHECK_FAILURE.labels(
-                    endpoint=endpoint_name,
-                    region=region,
-                    error_type="status_code"
+                    endpoint=endpoint_name, region=region, error_type="status_code"
                 ).inc()
-                UPTIME_CHECK_STATUS.labels(
-                    endpoint=endpoint_name,
-                    region=region
-                ).set(0)
+                UPTIME_CHECK_STATUS.labels(endpoint=endpoint_name, region=region).set(0)
 
         except httpx.TimeoutException:
             response_time = time.time() - start_time
-            result.update({
-                "response_time": response_time,
-                "error": "timeout",
-            })
-            
+            result.update(
+                {
+                    "response_time": response_time,
+                    "error": "timeout",
+                }
+            )
+
             UPTIME_CHECK_FAILURE.labels(
-                endpoint=endpoint_name,
-                region=region,
-                error_type="timeout"
+                endpoint=endpoint_name, region=region, error_type="timeout"
             ).inc()
-            UPTIME_CHECK_STATUS.labels(
-                endpoint=endpoint_name,
-                region=region
-            ).set(0)
+            UPTIME_CHECK_STATUS.labels(endpoint=endpoint_name, region=region).set(0)
 
         except Exception as e:
             response_time = time.time() - start_time
-            result.update({
-                "response_time": response_time,
-                "error": str(e),
-            })
-            
+            result.update(
+                {
+                    "response_time": response_time,
+                    "error": str(e),
+                }
+            )
+
             UPTIME_CHECK_FAILURE.labels(
-                endpoint=endpoint_name,
-                region=region,
-                error_type="exception"
+                endpoint=endpoint_name, region=region, error_type="exception"
             ).inc()
-            UPTIME_CHECK_STATUS.labels(
-                endpoint=endpoint_name,
-                region=region
-            ).set(0)
+            UPTIME_CHECK_STATUS.labels(endpoint=endpoint_name, region=region).set(0)
 
             logger.error("uptime_check_failed", endpoint=endpoint_name, error=str(e))
 
@@ -180,7 +164,7 @@ class SyntheticMonitor:
         """Run all endpoint checks."""
         tasks = [self.check_endpoint(endpoint) for endpoint in self.endpoints]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Filter out exceptions and return valid results
         valid_results: list[dict[str, Any]] = []
         for result in results:
@@ -188,24 +172,24 @@ class SyntheticMonitor:
                 logger.error("uptime_check_exception", error=str(result))
             elif isinstance(result, dict):
                 valid_results.append(result)
-        
+
         return valid_results
 
     async def start_monitoring(self) -> None:
         """Start continuous monitoring."""
         logger.info("starting_synthetic_monitoring")
-        
+
         while True:
             try:
                 results = await self.run_checks()
-                
+
                 # Log any failures
                 failures = [r for r in results if not r["success"]]
                 if failures:
                     logger.warning(
                         "uptime_check_failures",
                         failures=len(failures),
-                        details=failures
+                        details=failures,
                     )
 
                 # Calculate next check interval (minimum of all intervals)
@@ -216,7 +200,7 @@ class SyntheticMonitor:
                 ]
                 min_interval = min(intervals) if intervals else 60
                 await asyncio.sleep(min_interval)
-                
+
             except Exception as e:
                 logger.error("synthetic_monitoring_error", error=str(e))
                 await asyncio.sleep(60)  # Wait 1 minute before retrying
@@ -243,11 +227,11 @@ async def run_sla_check() -> dict[str, Any]:
     """Run SLA compliance check."""
     monitor = await get_synthetic_monitor()
     results = await monitor.run_checks()
-    
+
     total_checks = len(results)
     successful_checks = sum(1 for r in results if r["success"])
     availability = successful_checks / total_checks if total_checks > 0 else 0
-    
+
     # Calculate average response time
     response_times = [r["response_time"] for r in results if r["response_time"] > 0]
     avg_response_time = (

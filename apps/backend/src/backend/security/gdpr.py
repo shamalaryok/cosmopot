@@ -56,9 +56,7 @@ class GDPRDataExporter:
             region_name=settings.s3.region,
         )
 
-    async def export_user_data(
-        self, user_id: int | uuid.UUID
-    ) -> ExportUserDataPayload:
+    async def export_user_data(self, user_id: int | uuid.UUID) -> ExportUserDataPayload:
         """
         Export user data to S3 for GDPR compliance.
 

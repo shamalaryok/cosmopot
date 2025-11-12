@@ -39,7 +39,7 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
 
         start_time = time.time()
         session_id = getattr(request.state, "session_id", str(uuid.uuid4()))
-        
+
         # Extract user information if available
         user_id = None
         if hasattr(request.state, "user") and request.state.user:
@@ -47,11 +47,9 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
 
         # Process the request
         response = await call_next(request)
-        
+
         # Calculate processing time
-        processing_time = round(
-            (time.time() - start_time) * 1000, 2
-        )  # in milliseconds
+        processing_time = round((time.time() - start_time) * 1000, 2)  # in milliseconds
 
         # Track API call
         await self._track_api_call(
@@ -88,7 +86,8 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             # Add query parameters (excluding sensitive ones)
             if request.query_params:
                 safe_params = {
-                    k: v for k, v in request.query_params.items()
+                    k: v
+                    for k, v in request.query_params.items()
                     if k.lower() not in ["token", "password", "secret", "key"]
                 }
                 if safe_params:
@@ -97,7 +96,7 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             # Track the event asynchronously (fire and forget)
             try:
                 from backend.db.dependencies import get_db_session
-                
+
                 # This is a bit of a hack since we're in middleware
                 # In practice, you might want to use a background task
                 session_gen = cast(AsyncGenerator[AsyncSession, None], get_db_session())

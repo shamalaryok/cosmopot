@@ -57,9 +57,7 @@ class AnalyticsEventRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     event_data: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False
     )
-    user_properties: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON, nullable=True
-    )
+    user_properties: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)

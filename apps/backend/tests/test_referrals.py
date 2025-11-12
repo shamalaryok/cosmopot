@@ -34,23 +34,23 @@ async def test_users(async_session: AsyncSession) -> tuple[User, User, User]:
         is_verified=True,
     )
     user2 = User(
-        email="referred@example.com", 
+        email="referred@example.com",
         hashed_password="hashed",
         is_active=True,
         is_verified=True,
     )
     user3 = User(
         email="tier2@example.com",
-        hashed_password="hashed", 
+        hashed_password="hashed",
         is_active=True,
         is_verified=True,
     )
-    
+
     async_session.add_all([user1, user2, user3])
     await async_session.commit()
     for user in [user1, user2, user3]:
         await async_session.refresh(user)
-    
+
     return user1, user2, user3
 
 
@@ -69,11 +69,11 @@ async def test_payment(
         amount=Decimal("100.00"),
         currency="RUB",
     )
-    
+
     async_session.add(payment)
     await async_session.commit()
     await async_session.refresh(payment)
-    
+
     return payment
 
 
@@ -88,13 +88,13 @@ class TestReferralService:
     ) -> None:
         """Test that a new referral code is generated for a user without one."""
         user1, _, _ = test_users
-        
+
         code = await referral_service.get_referral_code(async_session, user1)
-        
+
         assert code is not None
         assert len(code) == 12
         assert code.isalnum()
-        
+
         # Verify referral was created
         stmt = select(Referral).where(Referral.referrer_id == user1.id)
         referral = (await async_session.execute(stmt)).scalar_one_or_none()
@@ -109,13 +109,13 @@ class TestReferralService:
     ) -> None:
         """Test that existing referral code is returned."""
         user1, _, _ = test_users
-        
+
         # Create initial referral
         code1 = await referral_service.get_referral_code(async_session, user1)
-        
+
         # Get code again
         code2 = await referral_service.get_referral_code(async_session, user1)
-        
+
         assert code1 == code2
 
     async def test_get_referral_stats(
@@ -126,18 +126,16 @@ class TestReferralService:
     ) -> None:
         """Test referral statistics calculation."""
         user1, user2, user3 = test_users
-        
+
         # Create referral relationship
-        referral_code = await referral_service.get_referral_code(
-            async_session, user1
-        )
+        referral_code = await referral_service.get_referral_code(async_session, user1)
         await referral_service.create_referral(
             async_session, user1, user2, referral_code
         )
         await referral_service.create_referral(
             async_session, user1, user3, referral_code
         )
-        
+
         # Create earnings
         earning1 = ReferralEarning(
             referral_id=user1.id,
@@ -155,19 +153,19 @@ class TestReferralService:
             percentage=10,
             tier=ReferralTier.TIER2,
         )
-        
+
         # Create withdrawal
         withdrawal = ReferralWithdrawal(
             user_id=user1.id,
             amount=Decimal("5.00"),
             status=WithdrawalStatus.PROCESSED,
         )
-        
+
         async_session.add_all([earning1, earning2, withdrawal])
         await async_session.commit()
-        
+
         stats = await referral_service.get_referral_stats(async_session, user1)
-        
+
         assert isinstance(stats, ReferralStats)
         assert stats.total_earnings == Decimal("30.00")
         assert stats.available_balance == Decimal("25.00")
@@ -185,11 +183,11 @@ class TestReferralService:
         """Test successful referral creation."""
         user1, user2, _ = test_users
         referral_code = "TESTCODE123"
-        
+
         referral = await referral_service.create_referral(
             async_session, user1, user2, referral_code
         )
-        
+
         assert referral is not None
         assert referral.referrer_id == user1.id
         assert referral.referred_user_id == user2.id
@@ -204,7 +202,7 @@ class TestReferralService:
     ) -> None:
         """Test that self-referral raises an error."""
         user1, _, _ = test_users
-        
+
         with pytest.raises(SelfReferralError):
             await referral_service.create_referral(
                 async_session, user1, user1, "TESTCODE"
@@ -218,15 +216,15 @@ class TestReferralService:
     ) -> None:
         """Test successful referral code processing."""
         user1, user2, user3 = test_users
-        
+
         # Create referral with placeholder user
         referral_code = await referral_service.get_referral_code(async_session, user1)
-        
+
         # Process code for new user
         referral = await referral_service.process_referral_code(
             async_session, referral_code, user2
         )
-        
+
         assert referral is not None
         assert referral.referred_user_id == user2.id
 
@@ -238,7 +236,7 @@ class TestReferralService:
     ) -> None:
         """Test that invalid referral code raises error."""
         _, user2, _ = test_users
-        
+
         with pytest.raises(ReferralCodeNotFoundError):
             await referral_service.process_referral_code(
                 async_session, "INVALIDCODE", user2
@@ -253,33 +251,29 @@ class TestReferralService:
     ) -> None:
         """Test that earnings are created for both tiers."""
         user1, user2, user3 = test_users
-        
+
         # Create referral chain: user3 -> user1 -> user2
-        referral_code1 = await referral_service.get_referral_code(
-            async_session, user3
-        )
+        referral_code1 = await referral_service.get_referral_code(async_session, user3)
         await referral_service.create_referral(
             async_session, user3, user1, referral_code1
         )
-        
-        referral_code2 = await referral_service.get_referral_code(
-            async_session, user1
-        )
+
+        referral_code2 = await referral_service.get_referral_code(async_session, user1)
         await referral_service.create_referral(
             async_session, user1, user2, referral_code2
         )
-        
+
         # Create earnings for payment by user2
         earnings = await referral_service.create_earning(async_session, test_payment)
-        
+
         assert len(earnings) == 2
-        
+
         # Check tier1 earning (20%)
         tier1_earning = next(e for e in earnings if e.tier == ReferralTier.TIER1)
         assert tier1_earning.amount == Decimal("20.00")  # 20% of 100
         assert tier1_earning.percentage == 20
         assert tier1_earning.user_id == user1.id
-        
+
         # Check tier2 earning (10%)
         tier2_earning = next(e for e in earnings if e.tier == ReferralTier.TIER2)
         assert tier2_earning.amount == Decimal("10.00")  # 10% of 100
@@ -304,7 +298,7 @@ class TestReferralService:
     ) -> None:
         """Test successful withdrawal request."""
         user1, _, _ = test_users
-        
+
         # Create earning
         earning = ReferralEarning(
             referral_id=user1.id,
@@ -316,12 +310,12 @@ class TestReferralService:
         )
         async_session.add(earning)
         await async_session.commit()
-        
+
         request = WithdrawalRequest(amount=Decimal("25.00"))
         withdrawal = await referral_service.request_withdrawal(
             async_session, user1, request
         )
-        
+
         assert withdrawal is not None
         assert withdrawal.user_id == user1.id
         assert withdrawal.amount == Decimal("25.00")
@@ -335,9 +329,9 @@ class TestReferralService:
     ) -> None:
         """Test that withdrawal fails with insufficient funds."""
         user1, _, _ = test_users
-        
+
         request = WithdrawalRequest(amount=Decimal("100.00"))
-        
+
         with pytest.raises(WithdrawalInsufficientFundsError):
             await referral_service.request_withdrawal(async_session, user1, request)
 
@@ -349,7 +343,7 @@ class TestReferralService:
     ) -> None:
         """Test getting user withdrawal history."""
         user1, _, _ = test_users
-        
+
         # Create withdrawals
         withdrawal1 = ReferralWithdrawal(
             user_id=user1.id,
@@ -361,12 +355,12 @@ class TestReferralService:
             amount=Decimal("20.00"),
             status=WithdrawalStatus.PENDING,
         )
-        
+
         async_session.add_all([withdrawal1, withdrawal2])
         await async_session.commit()
-        
+
         withdrawals = await referral_service.get_user_withdrawals(async_session, user1)
-        
+
         assert len(withdrawals) == 2
         # Should be ordered by created_at desc
         assert withdrawals[0].amount == Decimal("20.00")

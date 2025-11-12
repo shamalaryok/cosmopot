@@ -70,9 +70,7 @@ async def test_webhook_route_dispatches_update(
 
             token = bot_settings.telegram_webhook_secret_token
             assert token is not None
-            headers = {
-                "X-Telegram-Bot-Api-Secret-Token": token.get_secret_value()
-            }
+            headers = {"X-Telegram-Bot-Api-Secret-Token": token.get_secret_value()}
 
             asgi_transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(

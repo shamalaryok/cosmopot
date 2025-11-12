@@ -72,6 +72,7 @@ else:
             def inc(self, amount: float = 1.0) -> None:
                 return None
 
+
 router = APIRouter(prefix="/api/v1", tags=["generation"])
 logger = structlog.get_logger(__name__)
 
@@ -189,7 +190,7 @@ async def submit_generation_task(
     service: GenerationService = Depends(get_generation_service),
 ) -> GenerationTaskEnvelope:
     prompt_value = _normalise_prompt(prompt)
-    
+
     # Track generation start
     analytics_tracker = AnalyticsTracker(analytics_service, session)
     await analytics_tracker.track_generation(
@@ -200,7 +201,7 @@ async def submit_generation_task(
         file_size=file.size if file.size else 0,
         file_type=file.content_type,
     )
-    
+
     try:
         parameters = _parse_parameters(parameters_raw)
     except HTTPException:

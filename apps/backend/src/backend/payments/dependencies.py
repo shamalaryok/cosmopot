@@ -69,10 +69,10 @@ def get_payment_service(
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> PaymentService:
     return PaymentService(
-        settings=settings, 
-        gateway=gateway, 
+        settings=settings,
+        gateway=gateway,
         notifier=notifier,
-        referral_service=referral_service
+        referral_service=referral_service,
     )
 
 

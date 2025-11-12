@@ -60,9 +60,7 @@ class AnalyticsScheduler:
         )
 
         # Schedule weekly metrics calculation
-        schedule.every().week.do(
-            self._run_async_task, self._calculate_weekly_metrics
-        )
+        schedule.every().week.do(self._run_async_task, self._calculate_weekly_metrics)
 
         # Schedule monthly metrics calculation (run on the first day of each month)
         schedule.every().day.at("02:00").do(
@@ -70,14 +68,13 @@ class AnalyticsScheduler:
         )
 
         # Schedule data cleanup
-        schedule.every().week.do(
-            self._run_async_task, self._cleanup_old_data
-        )
+        schedule.every().week.do(self._run_async_task, self._cleanup_old_data)
 
         self._running = True
 
         # Run the scheduler in a separate thread
         import threading
+
         scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         scheduler_thread.start()
 
@@ -93,10 +90,12 @@ class AnalyticsScheduler:
             try:
                 schedule.run_pending()
                 import time
+
                 time.sleep(1)
             except Exception as e:
                 logger.error("Error in analytics scheduler loop", error=str(e))
                 import time
+
                 time.sleep(5)  # Wait before retrying
 
     def _run_async_task(
@@ -116,9 +115,9 @@ class AnalyticsScheduler:
         """Process pending analytics events."""
         try:
             async with _get_session() as session:
-                result: dict[str, int] = (
-                    await self.analytics_service.process_pending_events(session)
-                )
+                result: dict[
+                    str, int
+                ] = await self.analytics_service.process_pending_events(session)
                 logger.info(
                     "Processed pending analytics events",
                     processed=result["processed"],

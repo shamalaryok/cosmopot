@@ -255,9 +255,7 @@ async def export_users(
         )
 
     stmt = (
-        select(User)
-        .where(User.deleted_at.is_(None))
-        .order_by(User.created_at.desc())
+        select(User).where(User.deleted_at.is_(None)).order_by(User.created_at.desc())
     )
     result = await session.execute(stmt)
     users = result.scalars().all()
@@ -478,8 +476,7 @@ async def list_prompts(
     prompts = result.scalars().all()
 
     prompt_responses = [
-        AdminPromptResponse.model_validate(prompt)
-        for prompt in prompts
+        AdminPromptResponse.model_validate(prompt) for prompt in prompts
     ]
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
@@ -540,8 +537,7 @@ async def create_prompt_admin(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Prompt creation failed. "
-                "Slug/version combination may already exist."
+                "Prompt creation failed. Slug/version combination may already exist."
             ),
         ) from exc
 

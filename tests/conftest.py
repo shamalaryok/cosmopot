@@ -26,6 +26,7 @@ async def session_factory(
     async_url = f"sqlite+aiosqlite:///{db_path}"
 
     from user_service.models import Base
+
     engine = create_async_engine(async_url, future=True)
     async with engine.begin() as connection:
         await connection.execute(text("PRAGMA foreign_keys=ON"))

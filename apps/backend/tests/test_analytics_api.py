@@ -158,8 +158,9 @@ class TestAnalyticsAPI:
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
-            patch("backend.analytics.routes.get_analytics_aggregation_service")
-            as _mock_aggregation,
+            patch(
+                "backend.analytics.routes.get_analytics_aggregation_service"
+            ) as _mock_aggregation,
             patch("backend.analytics.routes.get_aggregated_metrics") as mock_metrics,
         ):
             mock_user.return_value = MagicMock(id="test-user-id")
@@ -235,8 +236,9 @@ class TestAnalyticsAPI:
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
-            patch("backend.analytics.routes.get_analytics_aggregation_service")
-            as mock_aggregation,
+            patch(
+                "backend.analytics.routes.get_analytics_aggregation_service"
+            ) as mock_aggregation,
             patch("backend.analytics.routes.get_db_session") as mock_session,
         ):
             mock_user.return_value = MagicMock(id="test-user-id")

@@ -48,7 +48,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    
+
     # Referral relationships (lazy to avoid circular imports)
     referrals_made: Mapped[list[Referral]] = relationship(
         foreign_keys="Referral.referrer_id",

@@ -51,26 +51,38 @@ def test_business_metrics_defined() -> None:
 @pytest.mark.asyncio
 async def test_metrics_service_context_manager() -> None:
     """Test metrics service context manager for generation timing."""
-    initial_requests = REGISTRY.get_sample_value(
-        "generation_requests_total",
-        {"user_id": "test_user", "status": "success", "model_type": "test"},
-    ) or 0
-    initial_active = REGISTRY.get_sample_value(
-        "active_generations",
-        {"model_type": "test"},
-    ) or 0
+    initial_requests = (
+        REGISTRY.get_sample_value(
+            "generation_requests_total",
+            {"user_id": "test_user", "status": "success", "model_type": "test"},
+        )
+        or 0
+    )
+    initial_active = (
+        REGISTRY.get_sample_value(
+            "active_generations",
+            {"model_type": "test"},
+        )
+        or 0
+    )
 
     async with metrics_service.measure_generation_time("test_user", "test"):
         pass
 
-    final_requests = REGISTRY.get_sample_value(
-        "generation_requests_total",
-        {"user_id": "test_user", "status": "success", "model_type": "test"},
-    ) or 0
-    final_active = REGISTRY.get_sample_value(
-        "active_generations",
-        {"model_type": "test"},
-    ) or 0
+    final_requests = (
+        REGISTRY.get_sample_value(
+            "generation_requests_total",
+            {"user_id": "test_user", "status": "success", "model_type": "test"},
+        )
+        or 0
+    )
+    final_active = (
+        REGISTRY.get_sample_value(
+            "active_generations",
+            {"model_type": "test"},
+        )
+        or 0
+    )
 
     assert final_requests == initial_requests + 1
     assert final_active == initial_active
@@ -85,14 +97,20 @@ def test_payment_metrics_recording() -> None:
         status="success",
     )
 
-    requests = REGISTRY.get_sample_value(
-        "payment_requests_total",
-        {"provider": "stripe", "currency": "USD", "status": "success"},
-    ) or 0
-    amount = REGISTRY.get_sample_value(
-        "payment_amount_total",
-        {"provider": "stripe", "currency": "USD"},
-    ) or 0
+    requests = (
+        REGISTRY.get_sample_value(
+            "payment_requests_total",
+            {"provider": "stripe", "currency": "USD", "status": "success"},
+        )
+        or 0
+    )
+    amount = (
+        REGISTRY.get_sample_value(
+            "payment_amount_total",
+            {"provider": "stripe", "currency": "USD"},
+        )
+        or 0
+    )
 
     assert requests > 0
     assert amount == 10.0
@@ -102,10 +120,13 @@ def test_user_registration_metrics() -> None:
     """Test user registration metrics."""
     metrics_service.record_user_registration(source="web")
 
-    registrations = REGISTRY.get_sample_value(
-        "user_registrations_total",
-        {"source": "web"},
-    ) or 0
+    registrations = (
+        REGISTRY.get_sample_value(
+            "user_registrations_total",
+            {"source": "web"},
+        )
+        or 0
+    )
 
     assert registrations > 0
 
@@ -115,14 +136,20 @@ def test_cache_metrics() -> None:
     metrics_service.record_cache_hit()
     metrics_service.record_cache_miss()
 
-    hits = REGISTRY.get_sample_value(
-        "cache_hits_total",
-        {"cache_type": "redis"},
-    ) or 0
-    misses = REGISTRY.get_sample_value(
-        "cache_misses_total",
-        {"cache_type": "redis"},
-    ) or 0
+    hits = (
+        REGISTRY.get_sample_value(
+            "cache_hits_total",
+            {"cache_type": "redis"},
+        )
+        or 0
+    )
+    misses = (
+        REGISTRY.get_sample_value(
+            "cache_misses_total",
+            {"cache_type": "redis"},
+        )
+        or 0
+    )
 
     assert hits > 0
     assert misses > 0

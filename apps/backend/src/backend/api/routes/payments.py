@@ -71,7 +71,7 @@ async def create_payment(
             session, current_user, payload.to_domain()
         )
         await session.commit()
-        
+
         # Track payment created successfully
         await analytics_tracker.track_payment(
             user_id=str(current_user.id),
@@ -82,7 +82,7 @@ async def create_payment(
             plan_code=payload.plan_code,
             payment_id=str(payment.id),
         )
-        
+
     except PaymentPlanNotFoundError as exc:
         await session.rollback()
         # Track payment failed - plan not found

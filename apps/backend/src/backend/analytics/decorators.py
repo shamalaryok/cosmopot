@@ -82,9 +82,9 @@ def track_analytics_event(
     event_data_mapper: Callable[P, Mapping[str, Any]] | None = None,
     include_user: bool = True,
     include_request_data: bool = False,
-) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]: 
+) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
     """Decorator to automatically track analytics events for function calls."""
-    
+
     def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         @functools.wraps(func)
         async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -98,9 +98,7 @@ def track_analytics_event(
             )
 
             session: AsyncSession | None = (
-                session_raw
-                if isinstance(session_raw, AsyncSession)
-                else None
+                session_raw if isinstance(session_raw, AsyncSession) else None
             )
             user_id = _extract_user_id(user_raw, include_user)
 
@@ -113,10 +111,12 @@ def track_analytics_event(
                     pass
 
             if include_request_data:
-                event_data.update({
-                    "function": func.__name__,
-                    "module": func.__module__,
-                })
+                event_data.update(
+                    {
+                        "function": func.__name__,
+                        "module": func.__module__,
+                    }
+                )
 
             if session is not None:
                 await _track_event_with_session(
@@ -128,10 +128,12 @@ def track_analytics_event(
             except BaseException as e:
                 if session is not None:
                     failure_event_data = dict(event_data)
-                    failure_event_data.update({
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                    })
+                    failure_event_data.update(
+                        {
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        }
+                    )
                     failure_event_type = _get_failure_event_type(event_type)
                     await _track_event_with_session(
                         session, failure_event_type, failure_event_data, user_id
@@ -150,19 +152,19 @@ def _get_failure_event_type(success_event_type: AnalyticsEvent) -> AnalyticsEven
         AnalyticsEvent.GENERATION_STARTED: AnalyticsEvent.GENERATION_FAILED,
         AnalyticsEvent.PAYMENT_INITIATED: AnalyticsEvent.PAYMENT_FAILED,
     }
-    
+
     return failure_mapping.get(success_event_type, success_event_type)
 
 
 class AnalyticsTracker:
     """Helper class for manual analytics tracking."""
-    
+
     def __init__(
         self, analytics_service: AnalyticsService, session: AsyncSession
     ) -> None:
         self.analytics_service = analytics_service
         self.session = session
-    
+
     async def track_signup(
         self,
         user_id: str,
@@ -175,7 +177,7 @@ class AnalyticsTracker:
             "signup_method": signup_method,
             **additional_data,
         }
-        
+
         await self.analytics_service.track_event(
             session=self.session,
             event_type=AnalyticsEvent.SIGNUP_COMPLETED,
@@ -183,7 +185,7 @@ class AnalyticsTracker:
             user_id=user_id,
             user_properties=user_properties,
         )
-    
+
     async def track_login(
         self,
         user_id: str,
@@ -195,14 +197,14 @@ class AnalyticsTracker:
             "login_method": login_method,
             **additional_data,
         }
-        
+
         await self.analytics_service.track_event(
             session=self.session,
             event_type=AnalyticsEvent.LOGIN,
             event_data=event_data,
             user_id=user_id,
         )
-    
+
     async def track_generation(
         self,
         user_id: str,
@@ -212,27 +214,27 @@ class AnalyticsTracker:
     ) -> None:
         """Track generation event."""
         event_type = AnalyticsEvent.GENERATION_STARTED
-        
+
         if status == "completed":
             event_type = AnalyticsEvent.GENERATION_COMPLETED
         elif status == "failed":
             event_type = AnalyticsEvent.GENERATION_FAILED
         elif status == "cancelled":
             event_type = AnalyticsEvent.GENERATION_CANCELLED
-        
+
         event_data = {
             "generation_type": generation_type,
             "status": status,
             **additional_data,
         }
-        
+
         await self.analytics_service.track_event(
             session=self.session,
             event_type=event_type,
             event_data=event_data,
             user_id=user_id,
         )
-    
+
     async def track_payment(
         self,
         user_id: str,
@@ -244,12 +246,12 @@ class AnalyticsTracker:
     ) -> None:
         """Track payment event."""
         event_type = AnalyticsEvent.PAYMENT_INITIATED
-        
+
         if status == "completed":
             event_type = AnalyticsEvent.PAYMENT_COMPLETED
         elif status == "failed":
             event_type = AnalyticsEvent.PAYMENT_FAILED
-        
+
         event_data = {
             "amount": amount,
             "currency": currency,
@@ -257,14 +259,14 @@ class AnalyticsTracker:
             "status": status,
             **additional_data,
         }
-        
+
         await self.analytics_service.track_event(
             session=self.session,
             event_type=event_type,
             event_data=event_data,
             user_id=user_id,
         )
-    
+
     async def track_referral(
         self,
         user_id: str,
@@ -274,25 +276,25 @@ class AnalyticsTracker:
     ) -> None:
         """Track referral event."""
         event_type = AnalyticsEvent.REFERRAL_SENT
-        
+
         if action == "accepted":
             event_type = AnalyticsEvent.REFERRAL_ACCEPTED
         elif action == "milestone":
             event_type = AnalyticsEvent.REFERRAL_MILESTONE_REACHED
-        
+
         event_data = {
             "referral_code": referral_code,
             "action": action,
             **additional_data,
         }
-        
+
         await self.analytics_service.track_event(
             session=self.session,
             event_type=event_type,
             event_data=event_data,
             user_id=user_id,
         )
-    
+
     async def track_feature_usage(
         self,
         user_id: str,
@@ -304,14 +306,14 @@ class AnalyticsTracker:
             "feature_name": feature_name,
             **additional_data,
         }
-        
+
         await self.analytics_service.track_event(
             session=self.session,
             event_type=AnalyticsEvent.FEATURE_USED,
             event_data=event_data,
             user_id=user_id,
         )
-    
+
     async def update_user_properties(
         self,
         user_id: str,

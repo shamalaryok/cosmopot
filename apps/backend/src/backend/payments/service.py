@@ -53,6 +53,7 @@ if _signature_verification_error is None:
         )
 
 if _signature_verification_error is None:
+
     class _FallbackStripeSignatureVerificationError(Exception):
         """Fallback Stripe signature verification error."""
 
@@ -309,11 +310,7 @@ class PaymentService:
                 metadata_updates["cancellation_details"] = (
                     dict(cancellation_details)
                     if cancellation_details is not None
-                    else (
-                        dict(failure_details)
-                        if failure_details is not None
-                        else {}
-                    )
+                    else (dict(failure_details) if failure_details is not None else {})
                 )
                 user = await session.get(User, payment.user_id)
                 await self._notify(user, payment, new_status, payload_dict)
@@ -734,6 +731,7 @@ class PaymentService:
                     "YooKassa integration is not configured"
                 )
             from backend.payments.gateway import YooKassaGateway
+
             return YooKassaGateway(
                 shop_id=str(yookassa.shop_id),
                 secret_key=yookassa.secret_key.get_secret_value(),
@@ -743,6 +741,7 @@ class PaymentService:
             if stripe_settings.api_key is None:
                 raise PaymentConfigurationError("Stripe integration is not configured")
             from backend.payments.gateway import StripeGateway
+
             return StripeGateway(api_key=stripe_settings.api_key.get_secret_value())
         else:
             raise PaymentConfigurationError(f"Unknown payment provider: {provider}")

@@ -476,9 +476,7 @@ async def schedule_data_export(
     try:
         settings = get_settings()
         exporter = GDPRDataExporter(settings)
-        result: ExportUserDataPayload = await exporter.export_user_data(
-            current_user.id
-        )
+        result: ExportUserDataPayload = await exporter.export_user_data(current_user.id)
 
         now = datetime.now(UTC)
         reference = f"export-{uuid4()}"
