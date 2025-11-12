@@ -24,6 +24,17 @@ GENERATION_REQUESTS_TOTAL = Counter(
     ["user_id", "status", "model_type"],
 )
 
+GENERATION_API_REQUESTS_TOTAL = Counter(
+    "generation_api_requests_total",
+    "Total generation requests processed by the API",
+    ["outcome"],
+)
+
+GENERATION_TASKS_ENQUEUED_TOTAL = Counter(
+    "generation_tasks_enqueued_total",
+    "Total generation tasks successfully enqueued",
+)
+
 GENERATION_DURATION_SECONDS = Histogram(
     "generation_duration_seconds",
     "Time spent processing generation requests",

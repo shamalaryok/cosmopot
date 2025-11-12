@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -44,34 +44,12 @@ from backend.generation.repository import (
     list_tasks_for_user,
 )
 from backend.generation.service import GenerationService, resolve_priority
+from backend.observability.metrics import (
+    GENERATION_API_REQUESTS_TOTAL,
+    GENERATION_TASKS_ENQUEUED_TOTAL,
+)
 from user_service.enums import SubscriptionStatus
 from user_service.models import Subscription, User
-
-
-class CounterProtocol(Protocol):
-    def labels(self, **kwargs: str) -> CounterProtocol: ...
-
-    def inc(self, amount: float = 1.0) -> None: ...
-
-
-if TYPE_CHECKING:
-    from prometheus_client import Counter as PrometheusCounter
-else:
-    try:  # pragma: no cover - fallback when prometheus_client is unavailable
-        from prometheus_client import Counter as PrometheusCounter
-    except ModuleNotFoundError:  # pragma: no cover
-
-        class PrometheusCounter:  # pragma: no cover - minimal fallback for typing
-            def __init__(self, *args: Any, **kwargs: Any) -> None:
-                self._labels: dict[str, str] = {}
-
-            def labels(self, **kwargs: str) -> PrometheusCounter:
-                self._labels = kwargs
-                return self
-
-            def inc(self, amount: float = 1.0) -> None:
-                return None
-
 
 router = APIRouter(prefix="/api/v1", tags=["generation"])
 logger = structlog.get_logger(__name__)
@@ -82,16 +60,6 @@ _ALLOWS: dict[str, str] = {
     "image/png": ".png",
 }
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
-
-_GENERATION_REQUESTS: CounterProtocol = PrometheusCounter(
-    "generation_requests_total",
-    "Total generation requests processed by the API",
-    labelnames=("outcome",),
-)
-_GENERATION_ENQUEUED: CounterProtocol = PrometheusCounter(
-    "generation_tasks_enqueued_total",
-    "Total generation tasks successfully enqueued",
-)
 
 
 def get_generation_service(
@@ -205,7 +173,7 @@ async def submit_generation_task(
     try:
         parameters = _parse_parameters(parameters_raw)
     except HTTPException:
-        _GENERATION_REQUESTS.labels(outcome="invalid_parameters").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="invalid_parameters").inc()
         # Track generation failed
         await analytics_tracker.track_generation(
             user_id=str(current_user.id),
@@ -218,12 +186,12 @@ async def submit_generation_task(
 
     content = await file.read()
     if not content:
-        _GENERATION_REQUESTS.labels(outcome="invalid_image").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="invalid_image").inc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Image file is required"
         )
     if len(content) > _MAX_IMAGE_BYTES:
-        _GENERATION_REQUESTS.labels(outcome="too_large").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="too_large").inc()
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Image exceeds size limit",
@@ -232,19 +200,19 @@ async def submit_generation_task(
     try:
         content_type, extension = _content_type_extension(file)
     except HTTPException:
-        _GENERATION_REQUESTS.labels(outcome="unsupported_type").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="unsupported_type").inc()
         raise
 
     subscription = await _get_active_subscription(session, current_user.id)
     if subscription is None:
-        _GENERATION_REQUESTS.labels(outcome="no_subscription").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="no_subscription").inc()
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Active subscription required",
         )
 
     if subscription.quota_limit and subscription.quota_used >= subscription.quota_limit:
-        _GENERATION_REQUESTS.labels(outcome="quota_exhausted").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="quota_exhausted").inc()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Generation quota exhausted"
         )
@@ -332,7 +300,7 @@ async def submit_generation_task(
             task_id=str(task_id),
             error=str(exc),
         )
-        _GENERATION_REQUESTS.labels(outcome="error").inc()
+        GENERATION_API_REQUESTS_TOTAL.labels(outcome="error").inc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to enqueue generation task",
@@ -340,8 +308,8 @@ async def submit_generation_task(
 
     await _broadcast_task_update(request, task)
 
-    _GENERATION_REQUESTS.labels(outcome="success").inc()
-    _GENERATION_ENQUEUED.inc()
+    GENERATION_API_REQUESTS_TOTAL.labels(outcome="success").inc()
+    GENERATION_TASKS_ENQUEUED_TOTAL.inc()
     logger.info(
         "generation_task_submitted",
         user_id=current_user.id,
