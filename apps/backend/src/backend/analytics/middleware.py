@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from typing import Any, cast
 
+import structlog
+from structlog.typing import FilteringBoundLogger
 from fastapi import Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,16 +17,18 @@ from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.service import AnalyticsService
 from backend.core.config import Settings
 
+logger: FilteringBoundLogger = structlog.get_logger(__name__)
+
 
 class AnalyticsMiddleware(BaseHTTPMiddleware):
     """Middleware to automatically track API requests and responses."""
 
-    def __init__(self, app, analytics_service: AnalyticsService, settings: Settings):
+    def __init__(self, app: Any, analytics_service: AnalyticsService, settings: Settings) -> None:
         super().__init__(app)
         self.analytics_service = analytics_service
         self.settings = settings
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         """Process request and track analytics events."""
         if not self.settings.analytics.enabled:
             return await call_next(request)
@@ -91,8 +96,8 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
                 
                 # This is a bit of a hack since we're in middleware
                 # In practice, you might want to use a background task
-                session_iter = get_db_session()
-                session: AsyncSession = await anext(session_iter)
+                session_gen = cast(AsyncGenerator[AsyncSession, None], get_db_session())
+                session: AsyncSession = await anext(session_gen)
                 try:
                     await self.analytics_service.track_event(
                         session=session,
@@ -105,17 +110,13 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
                     )
                     await session.commit()
                 finally:
-                    await session_iter.aclose()
+                    await session_gen.aclose()
             except Exception as e:
                 # Don't let analytics errors affect the main request
-                import structlog
-                logger = structlog.get_logger(__name__)
                 logger.error("Failed to track analytics event", error=str(e))
 
         except Exception as e:
             # Don't let analytics errors affect the main request
-            import structlog
-            logger = structlog.get_logger(__name__)
             logger.error("Error in analytics middleware", error=str(e))
 
     def _get_event_type_from_request(self, request: Request) -> AnalyticsEvent | None:
@@ -161,8 +162,9 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             return real_ip
 
         # Fall back to client IP
-        if hasattr(request, "client") and request.client:
-            return request.client.host
+        client = getattr(request, "client", None)
+        if client is not None:
+            return client.host
 
         return None
 
@@ -171,4 +173,4 @@ def add_session_id(request: Request) -> str:
     """Add or retrieve session ID from request state."""
     if not hasattr(request.state, "session_id"):
         request.state.session_id = str(uuid.uuid4())
-    return request.state.session_id
+    return cast(str, request.state.session_id)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Awaitable, Callable, Sequence
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
+from collections.abc import Awaitable, Callable, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, cast
 
 import sentry_sdk
 from sentry_sdk.integrations import Integration as SentryIntegration
@@ -32,16 +32,20 @@ try:
     from sentry_sdk.integrations.tornado import (
         TornadoIntegration as _TornadoIntegration,
     )
+    _tornado_integration: type[SentryIntegration] | None = _TornadoIntegration
 except Exception:  # pragma: no cover - tornado is optional
-    _TornadoIntegration = None
+    _tornado_integration = None
 
 # Type alias for optional Tornado integration
 TornadoIntegrationType: TypeAlias = type[SentryIntegration] | None
-TornadoIntegration: TornadoIntegrationType = _TornadoIntegration
+TornadoIntegration: TornadoIntegrationType = _tornado_integration
 
-ASGIScope: TypeAlias = dict[str, Any]
-ASGIReceive: TypeAlias = Callable[[], Awaitable[dict[str, Any]]]
-ASGISend: TypeAlias = Callable[[dict[str, Any]], Awaitable[None]]
+ASGIScope: TypeAlias = MutableMapping[str, Any]
+ASGIReceive: TypeAlias = Callable[[], Awaitable[MutableMapping[str, Any]]]
+ASGISend: TypeAlias = Callable[[MutableMapping[str, Any]], Awaitable[None]]
+SentryEvent: TypeAlias = dict[str, Any]
+SentryHint: TypeAlias = dict[str, Any]
+SentryBreadcrumb: TypeAlias = dict[str, Any]
 
 
 class SentrySettingsProtocol(Protocol):
@@ -61,7 +65,7 @@ class SentrySettingsProtocol(Protocol):
     enable_tracing: bool
     traces_sample_rate: float
     profiles_sample_rate: float | None
-    ignore_errors: Sequence[str]
+    ignore_errors: list[str]
 
 
 def configure_sentry(settings: SentrySettingsProtocol) -> None:
@@ -142,17 +146,22 @@ def configure_sentry(settings: SentrySettingsProtocol) -> None:
 
 
 def _before_send(
-    event: dict[str, Any],
-    hint: dict[str, Any] | None,
-) -> dict[str, Any] | None:
+    event: Any,
+    hint: Any,
+) -> Any:
     """Filter and modify events before sending to Sentry."""
     # Filter out health check errors
-    if event.get("request", {}).get("url", "").endswith("/health"):
+    if not isinstance(event, dict):
+        return event
+    
+    request_obj = event.get("request", {})
+    url_obj = request_obj.get("url", "") if isinstance(request_obj, dict) else ""
+    if isinstance(url_obj, str) and url_obj.endswith("/health"):
         return None
     
     # Filter out 404 errors (they're not usually actionable)
     exception_values = event.get("exception", {}).get("values", [{}])
-    if exception_values[0].get("type") == "NotFound":
+    if exception_values and exception_values[0].get("type") == "NotFound":
         return None
 
     # Add custom context
@@ -162,18 +171,26 @@ def _before_send(
 
 
 def _before_breadcrumb(
-    breadcrumb: dict[str, Any],
-    hint: dict[str, Any] | None,
-) -> dict[str, Any] | None:
+    breadcrumb: Any,
+    hint: Any,
+) -> Any:
     """Filter and modify breadcrumbs before sending to Sentry."""
+    if not isinstance(breadcrumb, dict):
+        return breadcrumb
+    
     # Filter out health check breadcrumbs
-    url = breadcrumb.get("data", {}).get("url", "")
-    if breadcrumb.get("category") == "http" and "/health" in url:
+    data = breadcrumb.get("data", {})
+    url = data.get("url", "") if isinstance(data, dict) else ""
+    if breadcrumb.get("category") == "http" and isinstance(url, str) and "/health" in url:
         return None
 
     # Filter out noisy breadcrumbs
-    duration = breadcrumb.get("data", {}).get("duration", 0)
-    if breadcrumb.get("category") in ["redis", "sql"] and duration < 10:
+    duration_obj = data.get("duration", 0) if isinstance(data, dict) else 0
+    if (
+        breadcrumb.get("category") in ["redis", "sql"]
+        and isinstance(duration_obj, (int, float))
+        and duration_obj < 10
+    ):
         return None
 
     return breadcrumb
@@ -210,7 +227,7 @@ def capture_exception(exception: Exception, **extra_context: Any) -> None:
 
 def capture_message(
     message: str,
-    level: str = "info",
+    level: Literal["fatal", "critical", "error", "warning", "info", "debug"] = "info",
     **extra_context: Any,
 ) -> None:
     """Capture message with additional context."""

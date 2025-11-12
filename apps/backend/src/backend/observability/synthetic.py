@@ -182,11 +182,11 @@ class SyntheticMonitor:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Filter out exceptions and return valid results
-        valid_results = []
+        valid_results: list[dict[str, Any]] = []
         for result in results:
             if isinstance(result, Exception):
                 logger.error("uptime_check_exception", error=str(result))
-            else:
+            elif isinstance(result, dict):
                 valid_results.append(result)
         
         return valid_results
@@ -207,9 +207,14 @@ class SyntheticMonitor:
                         failures=len(failures),
                         details=failures
                     )
-                
+
                 # Calculate next check interval (minimum of all intervals)
-                min_interval = min(ep["interval"] for ep in self.endpoints)
+                intervals = [
+                    ep["interval"]
+                    for ep in self.endpoints
+                    if "interval" in ep and isinstance(ep["interval"], (int, float))
+                ]
+                min_interval = min(intervals) if intervals else 60
                 await asyncio.sleep(min_interval)
                 
             except Exception as e:

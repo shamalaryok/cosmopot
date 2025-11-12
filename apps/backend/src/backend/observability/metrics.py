@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncContextManager
 from contextlib import AbstractAsyncContextManager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
@@ -12,8 +11,10 @@ from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
 if TYPE_CHECKING:
+    from contextlib import AbstractAsyncContextManager as AsyncContextManager
     from fastapi import FastAPI, Request
     from prometheus_client.registry import CollectorRegistry
+    from prometheus_fastapi_instrumentator.metrics import Info
     from starlette.responses import Response
 
 # Business metrics
@@ -169,27 +170,33 @@ class MetricsService:
         )
 
         # Add custom metrics using the documented add() method
-        def request_size_bytes_metric(request: Request, response: Response) -> None:
+        def request_size_bytes_metric(info: Info) -> None:
             """Track request sizes."""
-            content_length_header = request.headers.get("content-length")
+            if info.request is None:
+                return
+            content_length_header = info.request.headers.get("content-length")
             if content_length_header is None:
                 return
             try:
                 int(content_length_header)
             except (TypeError, ValueError):
                 return
-            _ = response.headers.get("content-length")
+            if info.response is not None:
+                _ = info.response.headers.get("content-length")
 
-        def response_size_bytes_metric(request: Request, response: Response) -> None:
+        def response_size_bytes_metric(info: Info) -> None:
             """Track response sizes."""
-            content_length_header = response.headers.get("content-length")
+            if info.response is None:
+                return
+            content_length_header = info.response.headers.get("content-length")
             if content_length_header is None:
                 return
             try:
                 int(content_length_header)
             except (TypeError, ValueError):
                 return
-            _ = request.headers.get("content-length")
+            if info.request is not None:
+                _ = info.request.headers.get("content-length")
 
         instrumentator.add(request_size_bytes_metric)
         instrumentator.add(response_size_bytes_metric)
