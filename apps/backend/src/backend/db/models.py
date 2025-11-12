@@ -45,7 +45,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 async def paginate_query(
     session: AsyncSession,
-    stmt: Select,
+    stmt: Select[Any],
     pagination: PaginationParams,
 ) -> tuple[list[Any], int]:
     """Paginate a SQLAlchemy query and return items with total count."""

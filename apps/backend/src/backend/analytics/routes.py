@@ -14,6 +14,7 @@ from backend.analytics.dependencies import (
     get_analytics_service,
 )
 from backend.analytics.enums import AnalyticsEvent
+from backend.analytics.models import AggregatedMetrics
 from backend.analytics.repository import (
     get_aggregated_metrics,
 )
@@ -203,11 +204,15 @@ async def get_dashboard_metrics(
         )
 
         # Extract values or defaults
-        def get_metric_value(metrics_list: list, metric_type: str, default=0) -> float:
+        def get_metric_value(
+            metrics_list: list[AggregatedMetrics],
+            metric_type: str,
+            default: float = 0.0,
+        ) -> float:
             for metric in metrics_list:
                 if metric.metric_type == metric_type:
-                    return metric.value
-            return default
+                    return float(metric.value)
+            return float(default)
 
         # Calculate today's metrics
         daily_dau = get_metric_value(daily_metrics, "dau")

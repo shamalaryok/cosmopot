@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,7 @@ class AnalyticsService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_dashboard_metrics(self) -> dict:
+    async def get_dashboard_metrics(self) -> dict[str, Any]:
         now = datetime.now(UTC)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=7)
