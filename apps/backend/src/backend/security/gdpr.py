@@ -47,12 +47,16 @@ class GDPRDataExporter:
         self.s3_client = boto3.client(
             "s3",
             endpoint_url=settings.s3.endpoint_url,
-            aws_access_key_id=settings.s3.access_key_id.get_secret_value()
-            if settings.s3.access_key_id
-            else None,
-            aws_secret_access_key=settings.s3.secret_access_key.get_secret_value()
-            if settings.s3.secret_access_key
-            else None,
+            aws_access_key_id=(
+                settings.s3.access_key_id.get_secret_value()
+                if settings.s3.access_key_id
+                else None
+            ),
+            aws_secret_access_key=(
+                settings.s3.secret_access_key.get_secret_value()
+                if settings.s3.secret_access_key
+                else None
+            ),
             region_name=settings.s3.region,
         )
 
@@ -185,9 +189,11 @@ class GDPRDataExporter:
                         logger.debug(
                             "s3_object_deleted",
                             key=obj["Key"],
-                            last_modified=last_modified.isoformat()
-                            if isinstance(last_modified, dt.datetime)
-                            else str(last_modified),
+                            last_modified=(
+                                last_modified.isoformat()
+                                if isinstance(last_modified, dt.datetime)
+                                else str(last_modified)
+                            ),
                         )
 
             logger.info(
