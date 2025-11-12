@@ -210,6 +210,7 @@ def test_generation_task_status_get_name_invalid() -> None:
 
 
 def test_generation_task_status_succeeded_alias() -> None:
-    assert GenerationTaskStatus.SUCCEEDED == GenerationTaskStatus.COMPLETED
-    assert GenerationTaskStatus.SUCCEEDED.value == "completed"
+    alias = GenerationTaskStatus.SUCCEEDED
+    assert alias is GenerationTaskStatus.COMPLETED
+    assert alias.value == "completed"
     assert GenerationTaskStatus.COMPLETED.value == "completed"

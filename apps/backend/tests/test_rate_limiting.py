@@ -1,29 +1,43 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from typing import cast
+
 import pytest
+import pytest_asyncio
 import redis.asyncio as redis
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
+from fakeredis import aioredis as fakeredis
 
 from backend.security.rate_limit import RateLimitMiddleware, RedisRateLimiter
 
 
-@pytest.fixture
-def redis_client() -> redis.Redis[bytes]:
+@pytest_asyncio.fixture
+async def redis_client() -> AsyncIterator[redis.Redis]:
     """Provide an in-memory Redis client for testing."""
-    return redis.from_url("redis://localhost:6379/1", decode_responses=False)
+    client = fakeredis.FakeRedis()
+    try:
+        yield cast(redis.Redis, client)
+    finally:
+        await client.flushdb()
+        await client.close()
 
 
-@pytest.fixture
-async def rate_limiter(redis_client: redis.Redis[bytes]) -> RedisRateLimiter:
+@pytest_asyncio.fixture
+async def rate_limiter(
+    redis_client: redis.Redis,
+) -> AsyncIterator[RedisRateLimiter]:
     """Provide a rate limiter instance."""
     limiter = RedisRateLimiter(
         redis_client,
         requests_per_minute=5,
         window_seconds=60,
     )
-    yield limiter
-    await redis_client.flushdb()
+    try:
+        yield limiter
+    finally:
+        await redis_client.flushdb()
 
 
 @pytest.mark.asyncio
@@ -110,7 +124,7 @@ async def test_rate_limit_resets_after_window(
 
 @pytest.mark.asyncio
 async def test_rate_limit_middleware_enforces_per_ip(
-    redis_client: redis.Redis[bytes],
+    redis_client: redis.Redis,
 ) -> None:
     """Test that RateLimitMiddleware enforces per-IP rate limiting."""
     app = FastAPI()
@@ -140,7 +154,7 @@ async def test_rate_limit_middleware_enforces_per_ip(
 
 @pytest.mark.asyncio
 async def test_rate_limit_middleware_different_ips(
-    redis_client: redis.Redis[bytes],
+    redis_client: redis.Redis,
 ) -> None:
     """Test that different IPs have independent rate limits."""
     app = FastAPI()

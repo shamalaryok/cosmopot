@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.models import User
-from backend.payments.models import Payment, PaymentStatus
+from backend.payments.enums import PaymentStatus
+from backend.payments.models import Payment
 from backend.referrals.enums import ReferralTier, WithdrawalStatus
 from backend.referrals.exceptions import (
     ReferralCodeNotFoundError,
