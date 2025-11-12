@@ -24,14 +24,19 @@ from backend.payments.enums import PaymentProvider, PaymentStatus
 from backend.payments.exceptions import PaymentSignatureError
 from backend.payments.models import Payment
 from backend.payments.service import PaymentService
-from backend.payments.types import PaymentProviderResponse, ProviderPayload
+from backend.payments.types import (
+    PaymentProviderResponse,
+    ProviderPayload,
+    YooKassaAmountPayload,
+    YooKassaPaymentPayload,
+)
 from user_service.models import SubscriptionPlan, User
 
 # Import SignatureVerificationError from stripe with fallback for legacy versions
 try:
     from stripe import SignatureVerificationError
 except (ImportError, ModuleNotFoundError):
-    from stripe.error import SignatureVerificationError
+    from stripe.error import SignatureVerificationError  # type: ignore[no-redef]
 
 T = TypeVar("T", SubscriptionPlan, User)
 
@@ -182,7 +187,8 @@ async def test_create_payment_persists_record(
 
     assert len(gateway.calls) == 1
     request_payload, idempotency_key = gateway.calls[0]
-    assert request_payload["amount"]["value"] == "9.99"
+    yookassa_payload = cast(YooKassaPaymentPayload, request_payload)
+    assert yookassa_payload["amount"]["value"] == "9.99"
     assert idempotency_key.startswith(str(user.id))
     assert notifier.notifications == []
 
@@ -371,7 +377,8 @@ async def test_stripe_signature_verification_exception_caught(
     service = PaymentService(settings=settings)
 
     def raise_signature_error(*args: Any, **kwargs: Any) -> None:
-        raise SignatureVerificationError(
+        sig_error_cls = cast(type[Exception], SignatureVerificationError)
+        raise sig_error_cls(
             "No signatures match the expected signature",
             "t=1",
             b"{}",

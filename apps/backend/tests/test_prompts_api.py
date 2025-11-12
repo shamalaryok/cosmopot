@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from backend.api.dependencies.users import get_current_user
-from user_service.enums import PromptCategory, UserRole
+from user_service.enums import PromptCategory, PromptSource, UserRole
 from user_service.models import User
 from user_service.repository import create_prompt
 from user_service.schemas import PromptCreate
@@ -42,7 +42,7 @@ async def test_list_prompts_returns_active_only(
                 name="Active Prompt",
                 description="This is active",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=True,
@@ -55,7 +55,7 @@ async def test_list_prompts_returns_active_only(
                 name="Inactive Prompt",
                 description="This is inactive",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=False,
@@ -84,7 +84,7 @@ async def test_list_prompts_filters_by_category(
                 name="Lips",
                 description="Lips category",
                 category=PromptCategory.LIPS,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=True,
@@ -97,7 +97,7 @@ async def test_list_prompts_filters_by_category(
                 name="Cheeks",
                 description="Cheeks category",
                 category=PromptCategory.CHEEKS,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=True,
@@ -125,7 +125,7 @@ async def test_get_prompt_by_slug_success(
                 name="Test Prompt",
                 description="Test description",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=True,
@@ -163,7 +163,7 @@ async def test_get_prompt_by_slug_with_version(
                 name="Version 1",
                 description="First version",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={"v": 1},
                 is_active=True,
@@ -177,7 +177,7 @@ async def test_get_prompt_by_slug_with_version(
                 name="Version 2",
                 description="Second version",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={"v": 2},
                 is_active=True,
@@ -206,7 +206,7 @@ async def test_get_inactive_prompt_with_include_inactive(
                 name="Inactive",
                 description="Inactive prompt",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=False,
@@ -342,7 +342,7 @@ async def test_update_prompt_success(
                 name="Original Name",
                 description="Original description",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=True,
@@ -387,7 +387,7 @@ async def test_update_prompt_validation_error(
                 name="Validation Test",
                 description="Test",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={
                     "type": "object",
                     "properties": {
@@ -456,7 +456,7 @@ async def test_deactivate_prompt_success(
                 name="Deactivate Test",
                 description="Test",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=True,
@@ -501,7 +501,7 @@ async def test_deactivate_already_inactive_prompt(
                 name="Already Inactive",
                 description="Test",
                 category=PromptCategory.GENERIC,
-                source="system",
+                source=PromptSource.SYSTEM,
                 parameters_schema={"type": "object"},
                 parameters={},
                 is_active=False,

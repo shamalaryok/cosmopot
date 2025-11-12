@@ -20,7 +20,11 @@ from backend.payments.dependencies import (
 from backend.payments.enums import PaymentProvider, PaymentStatus
 from backend.payments.models import Payment
 from backend.payments.service import PaymentService
-from backend.payments.types import PaymentProviderResponse, ProviderPayload
+from backend.payments.types import (
+    PaymentProviderResponse,
+    ProviderPayload,
+    StripePaymentPayload,
+)
 from user_service.models import SubscriptionPlan, User
 
 T = TypeVar("T", SubscriptionPlan, User)
@@ -172,8 +176,9 @@ async def test_create_stripe_payment_persists_record(
 
     assert len(gateway.calls) == 1
     request_payload, idempotency_key = gateway.calls[0]
-    assert request_payload["amount"] == 999  # 9.99 in cents
-    assert request_payload["currency"] == "usd"
+    stripe_payload = cast(StripePaymentPayload, request_payload)
+    assert stripe_payload["amount"] == 999  # 9.99 in cents
+    assert stripe_payload["currency"] == "usd"
     assert idempotency_key.startswith(str(user.id))
 
 
@@ -202,7 +207,8 @@ async def test_create_stripe_payment_with_international_currency(
     assert payload["currency"] == "EUR"
 
     request_payload, _ = gateway.calls[0]
-    assert request_payload["currency"] == "eur"
+    stripe_payload = cast(StripePaymentPayload, request_payload)
+    assert stripe_payload["currency"] == "eur"
 
 
 @pytest.mark.asyncio

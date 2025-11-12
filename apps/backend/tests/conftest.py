@@ -166,10 +166,10 @@ def mock_user() -> User:
     )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def async_session(
     session_factory: async_sessionmaker[AsyncSession],
-) -> AsyncSession:
+) -> AsyncIterator[AsyncSession]:
     """Create async session for testing."""
     async with session_factory() as session:
         yield session

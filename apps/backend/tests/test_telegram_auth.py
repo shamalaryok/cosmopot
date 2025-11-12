@@ -14,11 +14,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from conftest import TEST_BOT_TOKEN
 from backend.db.session import get_session_factory
 from user_service import services
 from user_service.models import User, UserProfile, UserSession
 from user_service.schemas import UserCreate, UserProfileCreate
+
+TEST_BOT_TOKEN = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 
 BASE_PAYLOAD = {
     "id": 777000,
