@@ -149,13 +149,13 @@ class QueuePublisher:
         self,
         settings: Settings,
         connection_factory: (
-            Callable[[str], Awaitable[aio_pika.RobustConnection]] | None
+            Callable[[str], Awaitable[aio_pika.abc.AbstractRobustConnection]] | None
         ) = None,
     ) -> None:
         self._settings = settings
         self._connection_factory = connection_factory
 
-    async def _connect(self) -> aio_pika.RobustConnection:
+    async def _connect(self) -> aio_pika.abc.AbstractRobustConnection:
         if self._connection_factory is not None:
             return await self._connection_factory(self._settings.rabbitmq.url)
         return await aio_pika.connect_robust(self._settings.rabbitmq.url)

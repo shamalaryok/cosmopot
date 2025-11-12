@@ -7,7 +7,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, Type, cast
+from types import ModuleType
 
 import stripe
 import structlog
@@ -15,10 +16,28 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Resilient import for Stripe signature verification errors
-try:  # pragma: no cover - compatibility with stripe >=7.0
-    from stripe import SignatureVerificationError
-except (ImportError, ModuleNotFoundError):  # pragma: no cover - stripe <7.0 fallback
-    from stripe.error import SignatureVerificationError
+StripeSignatureVerificationError: Type[Exception]
+
+_signature_verification_error = getattr(stripe, "SignatureVerificationError", None)
+if _signature_verification_error is None:
+    try:  # pragma: no cover - stripe <7.0 fallback
+        from stripe import error as stripe_error
+    except (ImportError, ModuleNotFoundError):  # pragma: no cover - stripe module unavailable
+        stripe_error = None
+    if stripe_error is not None:
+        _signature_verification_error = getattr(
+            stripe_error, "SignatureVerificationError", None
+        )
+
+if _signature_verification_error is None:
+    class _FallbackStripeSignatureVerificationError(Exception):
+        """Fallback Stripe signature verification error."""
+
+    StripeSignatureVerificationError = _FallbackStripeSignatureVerificationError
+else:
+    StripeSignatureVerificationError = cast(
+        Type[Exception], _signature_verification_error
+    )
 
 from backend.core.config import PaymentPlan, Settings
 from backend.payments.enums import PaymentEventType, PaymentProvider, PaymentStatus
@@ -353,14 +372,14 @@ class PaymentService:
             raise PaymentConfigurationError("Stripe webhook secret is not configured")
 
         try:
-            stripe.Webhook.construct_event(
+            cast(Any, stripe.Webhook).construct_event(
                 raw_body,
                 signature_header,
                 secret.get_secret_value(),
             )
         except ValueError as exc:
             raise PaymentSignatureError(f"Invalid webhook payload: {exc}") from exc
-        except SignatureVerificationError as exc:
+        except StripeSignatureVerificationError as exc:
             raise PaymentSignatureError(
                 f"Webhook signature verification failed: {exc}"
             ) from exc

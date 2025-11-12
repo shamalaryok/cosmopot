@@ -54,10 +54,6 @@ class DatabaseSettings(BaseModel):
     name: str = SERVICE_NAME
     echo: bool = False
 
-    if TYPE_CHECKING:
-        dsn: str
-        async_fallback_dsn: str
-
     def _build_dsn(self) -> str:
         if self.url is not None:
             return str(self.url)
@@ -558,7 +554,7 @@ class Settings(BaseSettings):
 
     cors_allow_origins: list[str] = Field(default_factory=list)
 
-    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    database: DatabaseSettings = Field(default_factory=lambda: DatabaseSettings())
     redis: RedisSettings = Field(default_factory=RedisSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
     jwt: JWTSettings = Field(default_factory=JWTSettings)
@@ -654,11 +650,6 @@ class Settings(BaseSettings):
             self.debug = True
 
         return self
-
-    if TYPE_CHECKING:
-        is_development: bool
-        is_testing: bool
-        is_production: bool
 
     @computed_field
     def is_development(self) -> bool:

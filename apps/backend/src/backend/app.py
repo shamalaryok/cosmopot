@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import redis.asyncio as redis
+from redis.asyncio import Redis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
@@ -38,7 +39,7 @@ def _register_middlewares(
             allow_headers=["*"],
         )
 
-    redis_client = redis.from_url(settings.redis.url, decode_responses=False)
+    redis_client: Redis = Redis.from_url(settings.redis.url, decode_responses=False)
     app.add_middleware(
         RateLimitMiddleware,
         redis_client=redis_client,
