@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from logging.config import dictConfig
+from typing import TYPE_CHECKING
 
 import structlog
 import structlog.types
@@ -11,6 +12,9 @@ from structlog.stdlib import get_logger as get_structlog_logger
 
 def _stack_info_renderer() -> structlog.types.Processor:
     """Return StackInfoRenderer with omit_if_debug kwarg if supported."""
+    if TYPE_CHECKING:
+        return structlog.processors.StackInfoRenderer()
+
     try:
         return structlog.processors.StackInfoRenderer(omit_if_debug=True)
     except TypeError:

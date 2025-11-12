@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 try:
     from backend.core.config import get_settings
-    from backend.security import GDPRDataExporter
+    from backend.security import GDPRDataExporter, PurgeOldAssetsPayload
 except ImportError:
     pass
 
@@ -77,7 +77,7 @@ def process_generation_task(task: Task, task_id: int) -> dict[str, Any]:
 
 
 @typed_task(name=f"{TASK_NAMESPACE}.purge_old_s3_assets")
-def purge_old_s3_assets(retention_days: int | None = None) -> dict[str, Any]:
+def purge_old_s3_assets(retention_days: int | None = None) -> PurgeOldAssetsPayload:
     """
     Scheduled task to purge S3 assets older than retention period.
 
@@ -89,7 +89,7 @@ def purge_old_s3_assets(retention_days: int | None = None) -> dict[str, Any]:
         exporter = GDPRDataExporter(settings)
 
         days = retention_days or settings.gdpr.result_retention_days
-        result = asyncio.run(exporter.purge_old_assets(days))
+        result: PurgeOldAssetsPayload = asyncio.run(exporter.purge_old_assets(days))
 
         logger.info("s3_purge_task_completed", result=result)
         return result

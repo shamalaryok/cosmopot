@@ -31,7 +31,11 @@ from backend.api.schemas.users import (
 )
 from backend.core.config import get_settings
 from backend.db.dependencies import get_db_session
-from backend.security import GDPRDataExporter
+from backend.security import (
+    ExportUserDataPayload,
+    GDPRDataExporter,
+    MarkUserForDeletionPayload,
+)
 from user_service.enums import SubscriptionStatus, UserRole
 from user_service.models import (
     Subscription,
@@ -472,11 +476,13 @@ async def schedule_data_export(
     try:
         settings = get_settings()
         exporter = GDPRDataExporter(settings)
-        result = await exporter.export_user_data(current_user.id)
-        
+        result: ExportUserDataPayload = await exporter.export_user_data(
+            current_user.id
+        )
+
         now = datetime.now(UTC)
         reference = f"export-{uuid4()}"
-        
+
         return GDPRRequestResponse(
             status=result["status"],
             requested_at=now,
@@ -506,11 +512,13 @@ async def schedule_data_delete(
     try:
         settings = get_settings()
         exporter = GDPRDataExporter(settings)
-        result = await exporter.mark_user_for_deletion(current_user.id)
-        
+        result: MarkUserForDeletionPayload = await exporter.mark_user_for_deletion(
+            current_user.id
+        )
+
         now = datetime.now(UTC)
         reference = f"delete-{uuid4()}"
-        
+
         retention_days = settings.gdpr.result_retention_days
         return GDPRRequestResponse(
             status=result["status"],
