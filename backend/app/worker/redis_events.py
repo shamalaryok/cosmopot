@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 from redis.asyncio import Redis
 
@@ -27,7 +27,7 @@ class RedisNotifier:
         self._dead_letter_channel = dead_letter_channel
         self._idempotency_prefix = idempotency_prefix
         self._idempotency_ttl = idempotency_ttl
-        self._client: Redis[str] | None = None
+        self._client: Redis | None = None
         self._log = get_logger(__name__)
 
     @classmethod
@@ -42,14 +42,11 @@ class RedisNotifier:
 
     async def connect(self) -> None:
         if self._client is None:
-            self._client = cast(
-                Redis[str],
-                Redis.from_url(
-                    self._url,
-                    encoding="utf-8",
-                    decode_responses=True,
-                    health_check_interval=30,
-                ),
+            self._client = Redis.from_url(
+                self._url,
+                encoding="utf-8",
+                decode_responses=True,
+                health_check_interval=30,
             )
 
     async def close(self) -> None:
@@ -57,7 +54,7 @@ class RedisNotifier:
             await self._client.close()
             self._client = None
 
-    def _get_client(self) -> Redis[str]:
+    def _get_client(self) -> Redis:
         client = self._client
         if client is None:
             raise RuntimeError("Redis client is not ready")

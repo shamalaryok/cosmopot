@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from backend.core.config import GDPRSettings, S3Settings, Settings
-from backend.security.gdpr import GDPRDataExporter
+from backend.security.gdpr import (
+    ExportUserDataPayload,
+    GDPRDataExporter,
+    MarkUserForDeletionPayload,
+    PurgeOldAssetsPayload,
+)
 
 
 @pytest.fixture
@@ -22,10 +27,15 @@ def gdpr_settings() -> GDPRSettings:
 @pytest.fixture
 def s3_settings() -> S3Settings:
     """Provide S3 settings."""
-    return S3Settings(
+    from pydantic import SecretStr
+
+    return S3Settings.model_construct(
         bucket="test-bucket",
         region="us-east-1",
         endpoint_url="http://localhost:9000",
+        access_key_id=SecretStr("test-key"),
+        secret_access_key=SecretStr("test-secret"),
+        presign_ttl_seconds=1800,
     )
 
 
@@ -35,29 +45,27 @@ def mock_settings(gdpr_settings: GDPRSettings, s3_settings: S3Settings) -> Setti
     settings = MagicMock(spec=Settings)
     settings.gdpr = gdpr_settings
     settings.s3 = s3_settings
-    settings.s3.access_key_id = MagicMock()
-    settings.s3.access_key_id.get_secret_value.return_value = "test-key"
-    settings.s3.secret_access_key = MagicMock()
-    settings.s3.secret_access_key.get_secret_value.return_value = "test-secret"
     return settings
 
 
 @pytest.mark.asyncio
-async def test_export_user_data(mock_settings: Settings) -> None:
+@pytest.mark.parametrize("user_id", [uuid.uuid4(), 42])
+async def test_export_user_data(
+    mock_settings: Settings, user_id: uuid.UUID | int
+) -> None:
     """Test user data export."""
     with patch("boto3.client") as mock_boto3:
         mock_s3 = MagicMock()
         mock_boto3.return_value = mock_s3
 
         exporter = GDPRDataExporter(mock_settings)
-        user_id = uuid.uuid4()
 
-        result = await exporter.export_user_data(user_id)
+        result: ExportUserDataPayload = await exporter.export_user_data(user_id)
 
         assert result["status"] == "scheduled"
-        assert str(user_id) in result["user_id"]
-        assert "export_location" in result
-        assert "timestamp" in result
+        assert result["user_id"] == str(user_id)
+        assert isinstance(result["export_location"], str)
+        assert isinstance(result["timestamp"], str)
 
         mock_s3.put_object.assert_called_once()
         call_kwargs = mock_s3.put_object.call_args[1]
@@ -66,18 +74,22 @@ async def test_export_user_data(mock_settings: Settings) -> None:
 
 
 @pytest.mark.asyncio
-async def test_mark_user_for_deletion(mock_settings: Settings) -> None:
+@pytest.mark.parametrize("user_id", [uuid.uuid4(), 84])
+async def test_mark_user_for_deletion(
+    mock_settings: Settings, user_id: uuid.UUID | int
+) -> None:
     """Test marking user for deletion."""
     with patch("boto3.client"):
         exporter = GDPRDataExporter(mock_settings)
-        user_id = uuid.uuid4()
 
-        result = await exporter.mark_user_for_deletion(user_id)
+        result: MarkUserForDeletionPayload = await exporter.mark_user_for_deletion(
+            user_id
+        )
 
         assert result["status"] == "scheduled"
-        assert str(user_id) in result["user_id"]
+        assert result["user_id"] == str(user_id)
         assert result["hard_delete_after_days"] == 90
-        assert "deletion_scheduled_at" in result
+        assert isinstance(result["deletion_scheduled_at"], str)
 
 
 @pytest.mark.asyncio
@@ -106,11 +118,11 @@ async def test_purge_old_assets(mock_settings: Settings) -> None:
         ]
 
         exporter = GDPRDataExporter(mock_settings)
-        result = await exporter.purge_old_assets(90)
+        result: PurgeOldAssetsPayload = await exporter.purge_old_assets(90)
 
         assert result["status"] == "completed"
         assert result["deleted_count"] == 2
-        assert "cutoff_time" in result
+        assert isinstance(result["cutoff_time"], str)
 
 
 @pytest.mark.asyncio
@@ -127,7 +139,9 @@ async def test_purge_old_assets_uses_default_retention(
         mock_paginator.paginate.return_value = [{"Contents": []}]
 
         exporter = GDPRDataExporter(mock_settings)
-        result = await exporter.purge_old_assets(older_than_days=None)
+        result: PurgeOldAssetsPayload = await exporter.purge_old_assets(
+            older_than_days=None
+        )
 
         assert result["status"] == "completed"
 
