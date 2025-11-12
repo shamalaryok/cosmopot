@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.analytics.decorators import AnalyticsTracker
 from backend.analytics.dependencies import get_analytics_service
+from backend.analytics.service import AnalyticsService
 from backend.api.dependencies.users import get_current_user
 from backend.api.schemas.referrals import (
     ReferralCodeResponse,
@@ -23,13 +24,14 @@ from backend.referrals.exceptions import (
     ReferralCodeNotFoundError,
     WithdrawalInsufficientFundsError,
 )
-from backend.referrals.service import ReferralService
+from backend.referrals.models import ReferralWithdrawal
+from backend.referrals.service import ReferralService, WithdrawalRequest as ServiceWithdrawalRequest
 from user_service.models import User
 
 router = APIRouter(prefix="/api/v1/referrals", tags=["referrals"])
 
 
-def _map_withdrawal_to_response(withdrawal: Any) -> WithdrawalResponse:
+def _map_withdrawal_to_response(withdrawal: ReferralWithdrawal) -> WithdrawalResponse:
     """Map withdrawal model to response schema."""
     processed_at = (
         withdrawal.processed_at.isoformat()
@@ -52,7 +54,7 @@ def _map_withdrawal_to_response(withdrawal: Any) -> WithdrawalResponse:
     summary="Get user's referral code",
 )
 async def get_referral_code(
-    analytics_service = Depends(get_analytics_service),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
@@ -72,7 +74,7 @@ async def get_referral_code(
     referral_code = await referral_service.get_referral_code(session, current_user)
     
     # Build referral URL
-    base_url = settings.app.base_url or "https://example.com"
+    base_url = str(settings.backend_base_url)
     referral_url = f"{base_url}/signup?ref={referral_code}"
     
     return ReferralCodeResponse(
@@ -126,8 +128,12 @@ async def request_withdrawal(
     referral_service = ReferralService()
     
     try:
+        service_request = ServiceWithdrawalRequest(
+            amount=payload.amount,
+            notes=payload.notes,
+        )
         withdrawal = await referral_service.request_withdrawal(
-            session, current_user, payload
+            session, current_user, service_request
         )
         await session.commit()
     except WithdrawalInsufficientFundsError as exc:

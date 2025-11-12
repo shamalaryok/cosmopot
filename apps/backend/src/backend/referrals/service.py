@@ -4,7 +4,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Protocol
+from typing import Protocol, Union, cast
 
 import structlog
 from sqlalchemy import func, select
@@ -24,7 +24,7 @@ class UserProtocol(Protocol):
     """Protocol for user models used in referral operations."""
 
     @property
-    def id(self) -> uuid.UUID:
+    def id(self) -> Union[int, uuid.UUID]:
         """Unique identifier for the user."""
         ...
 
@@ -58,7 +58,7 @@ class ReferralService:
         """Get or generate referral code for a user."""
         stmt = (
             select(Referral.referral_code).where(
-                Referral.referrer_id == user.id
+                Referral.referrer_id == cast(uuid.UUID, user.id)
             ).limit(1)
         )
         result = await session.execute(stmt)
@@ -71,8 +71,8 @@ class ReferralService:
         
         # Create a referral record for the code (placeholder with self as referred_user)
         referral = Referral(
-            referrer_id=user.id,
-            referred_user_id=user.id,  # Temporary, updated during actual referral
+            referrer_id=cast(uuid.UUID, user.id),
+            referred_user_id=cast(uuid.UUID, user.id),  # Temporary, updated during actual referral
             referral_code=code,
             tier=ReferralTier.TIER1,
         )
@@ -90,7 +90,7 @@ class ReferralService:
         # Get total earnings
         earnings_stmt = (
             select(func.coalesce(func.sum(ReferralEarning.amount), Decimal("0")))
-            .where(ReferralEarning.user_id == user.id)
+            .where(ReferralEarning.user_id == cast(uuid.UUID, user.id))
         )
         total_earnings = (await session.execute(earnings_stmt)).scalar() or Decimal("0")
         
@@ -98,7 +98,7 @@ class ReferralService:
         withdrawals_stmt = (
             select(func.coalesce(func.sum(ReferralWithdrawal.amount), Decimal("0")))
             .where(
-                ReferralWithdrawal.user_id == user.id,
+                ReferralWithdrawal.user_id == cast(uuid.UUID, user.id),
                 ReferralWithdrawal.status == WithdrawalStatus.PROCESSED
             )
         )
@@ -108,7 +108,7 @@ class ReferralService:
         
         # Get pending withdrawals
         pending_stmt = select(func.count(ReferralWithdrawal.id)).where(
-            ReferralWithdrawal.user_id == user.id,
+            ReferralWithdrawal.user_id == cast(uuid.UUID, user.id),
             ReferralWithdrawal.status == WithdrawalStatus.PENDING
         )
         pending_withdrawals = (await session.execute(pending_stmt)).scalar() or 0
@@ -117,13 +117,13 @@ class ReferralService:
         
         # Get referral counts by tier
         tier1_stmt = select(func.count(Referral.id)).where(
-            Referral.referrer_id == user.id,
+            Referral.referrer_id == cast(uuid.UUID, user.id),
             Referral.tier == ReferralTier.TIER1
         )
         tier1_count = (await session.execute(tier1_stmt)).scalar() or 0
         
         tier2_stmt = select(func.count(Referral.id)).where(
-            Referral.referrer_id == user.id,
+            Referral.referrer_id == cast(uuid.UUID, user.id),
             Referral.tier == ReferralTier.TIER2
         )
         tier2_count = (await session.execute(tier2_stmt)).scalar() or 0
@@ -157,16 +157,16 @@ class ReferralService:
             
         # Check if referral already exists
         existing_stmt = select(Referral).where(
-            Referral.referrer_id == referrer.id,
-            Referral.referred_user_id == referred_user.id
+            Referral.referrer_id == cast(uuid.UUID, referrer.id),
+            Referral.referred_user_id == cast(uuid.UUID, referred_user.id)
         )
         existing = (await session.execute(existing_stmt)).scalar_one_or_none()
         if existing:
             return existing
             
         referral = Referral(
-            referrer_id=referrer.id,
-            referred_user_id=referred_user.id,
+            referrer_id=cast(uuid.UUID, referrer.id),
+            referred_user_id=cast(uuid.UUID, referred_user.id),
             referral_code=referral_code,
             tier=ReferralTier.TIER1,
         )
@@ -194,11 +194,15 @@ class ReferralService:
             return None
             
         # Update the referral with the new user
-        referral.referred_user_id = user.id
+        referral.referred_user_id = cast(uuid.UUID, user.id)
         await session.flush()
         
         # Create tier2 referrals for the referrer's referrer (if exists)
-        await self._create_tier2_referral(session, referral.referrer_id, user.id)
+        await self._create_tier2_referral(
+            session,
+            referral.referrer_id,
+            cast(uuid.UUID, user.id),
+        )
         
         return referral
 
@@ -210,7 +214,7 @@ class ReferralService:
         
         # Find the referral relationship for the paying user
         referral_stmt = select(Referral).where(
-            Referral.referred_user_id == payment.user_id,
+            Referral.referred_user_id == cast(uuid.UUID, payment.user_id),
             Referral.is_active
         )
         referral = (await session.execute(referral_stmt)).scalar_one_or_none()
@@ -284,7 +288,7 @@ class ReferralService:
             )
             
         withdrawal = ReferralWithdrawal(
-            user_id=user.id,
+            user_id=cast(uuid.UUID, user.id),
             amount=request.amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
             status=WithdrawalStatus.PENDING,
             notes=request.notes,
@@ -298,7 +302,7 @@ class ReferralService:
     ) -> list[ReferralWithdrawal]:
         """Get all withdrawal requests for a user."""
         stmt = select(ReferralWithdrawal).where(
-            ReferralWithdrawal.user_id == user.id
+            ReferralWithdrawal.user_id == cast(uuid.UUID, user.id)
         ).order_by(ReferralWithdrawal.created_at.desc())
         result = await session.execute(stmt)
         return list(result.scalars().all())

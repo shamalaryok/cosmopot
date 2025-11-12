@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.analytics.decorators import AnalyticsTracker
 from backend.analytics.dependencies import get_analytics_service
+from backend.analytics.service import AnalyticsService
 from backend.api.dependencies.users import get_current_user
 from backend.api.schemas.payments import (
     PaymentCreateRequest,
@@ -25,9 +26,13 @@ from user_service.models import User
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
 
-def _map_payment_to_response(payment) -> PaymentCreateResponse:  # type: ignore[no-untyped-def]
+from backend.payments.models import Payment
+
+
+def _map_payment_to_response(payment: Payment) -> PaymentCreateResponse:
     return PaymentCreateResponse(
         id=payment.id,
+        provider=payment.provider,
         provider_payment_id=payment.provider_payment_id,
         status=payment.status,
         confirmation_url=payment.confirmation_url,
@@ -44,7 +49,7 @@ def _map_payment_to_response(payment) -> PaymentCreateResponse:  # type: ignore[
 )
 async def create_payment(
     payload: PaymentCreateRequest,
-    analytics_service = Depends(get_analytics_service),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
