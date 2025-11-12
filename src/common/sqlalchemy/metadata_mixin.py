@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from functools import wraps
-from typing import Any, Callable, ClassVar, cast
+from typing import Any, ClassVar, cast
 
 __all__ = ["MetadataAliasMixin"]
 
@@ -33,13 +33,19 @@ class MetadataAliasMixin:
 
         @wraps(original_init)
         def wrapped_init(self: Any, *args: Any, **init_kwargs: Any) -> None:
-            metadata_value = init_kwargs.pop("metadata", cls._metadata_marker)
-            if metadata_value is not cls._metadata_marker and "meta_data" not in init_kwargs:
+            metadata_value = init_kwargs.pop(
+                "metadata",
+                cls._metadata_marker,
+            )
+            if (
+                metadata_value is not cls._metadata_marker
+                and "meta_data" not in init_kwargs
+            ):
                 init_kwargs["meta_data"] = cls._coerce_metadata(metadata_value)
             original_init(self, *args, **init_kwargs)
 
-        setattr(wrapped_init, "__metadata_alias_wrapped__", True)
-        setattr(cls, "__init__", wrapped_init)
+        wrapped_init.__metadata_alias_wrapped__ = True
+        cls.__init__ = wrapped_init
 
     @property
     def metadata_dict(self) -> dict[str, Any]:
