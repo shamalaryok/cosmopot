@@ -115,9 +115,7 @@ class AnalyticsScheduler:
         """Process pending analytics events."""
         try:
             async with _get_session() as session:
-                result: dict[str, int] = (
-                    await self.analytics_service.process_pending_events(session)
-                )
+                result = await self.analytics_service.process_pending_events(session)
                 logger.info(
                     "Processed pending analytics events",
                     processed=result["processed"],
