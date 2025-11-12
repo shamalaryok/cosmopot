@@ -48,7 +48,6 @@ class AnalyticsEventRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     event_type: Mapped[AnalyticsEvent] = mapped_column(
         Enum(AnalyticsEvent, name="analytics_event_type", native_enum=False),
         nullable=False,
-        index=True,
     )
     provider: Mapped[AnalyticsProvider] = mapped_column(
         Enum(AnalyticsProvider, name="analytics_event_provider", native_enum=False),
@@ -94,9 +93,9 @@ class AggregatedMetrics(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
     )
 
-    metric_date: Mapped[dt.date] = mapped_column(Date(), nullable=False, index=True)
-    metric_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    period: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    metric_date: Mapped[dt.date] = mapped_column(Date(), nullable=False)
+    metric_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    period: Mapped[str] = mapped_column(String(20), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
     metric_data: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False
