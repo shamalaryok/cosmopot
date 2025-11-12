@@ -4,9 +4,10 @@ import asyncio
 import random
 import time
 from collections.abc import Callable
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, ParamSpec, Protocol, TypeVar, cast
 
 from celery import Task, states
+from celery.result import AsyncResult
 
 from .celery_app import celery_app
 from .constants import TASK_NAMESPACE
@@ -16,30 +17,35 @@ from .worker.processor import GenerationTaskProcessor
 
 logger = get_logger(__name__)
 
-try:
-    from backend.core.config import get_settings
-    from backend.security import GDPRDataExporter, PurgeOldAssetsPayload
-except ImportError:
-    pass
+from backend.core.config import get_settings
+from backend.security import GDPRDataExporter, PurgeOldAssetsPayload
 
 P = ParamSpec("P")
-R = TypeVar("R")
+R_co = TypeVar("R_co", covariant=True)
+
+
+class RegisteredTask(Protocol[P, R_co]):
+    name: str
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R_co: ...
+
+    def delay(self, *args: P.args, **kwargs: P.kwargs) -> AsyncResult[R_co]: ...
+
+    def apply_async(
+        self,
+        args: tuple[Any, ...] | None = ...,
+        kwargs: dict[str, Any] | None = ...,
+        **options: Any,
+    ) -> AsyncResult[R_co]: ...
 
 
 def typed_task(
     *,
     name: str,
     bind: bool = False,
-) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    raw_decorator = cast(
-        Callable[[Callable[P, R]], Callable[P, R]],
-        celery_app.task(name=name, bind=bind),
-    )
-
-    def decorator(func: Callable[P, R]) -> Callable[P, R]:
-        return raw_decorator(func)
-
-    return decorator
+) -> Callable[[Callable[P, R_co]], RegisteredTask[P, R_co]]:
+    raw_decorator = celery_app.task(name=name, bind=bind)
+    return cast(Callable[[Callable[P, R_co]], RegisteredTask[P, R_co]], raw_decorator)
 
 
 @typed_task(name=f"{TASK_NAMESPACE}.ping")
