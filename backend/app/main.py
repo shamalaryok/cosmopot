@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import urlparse
 
 import aio_pika
+from aio_pika.abc import AbstractRobustChannel, AbstractRobustConnection
 import sentry_sdk
 from celery.result import AsyncResult
 from fastapi import FastAPI, status
@@ -20,7 +22,7 @@ from .config import settings
 from .tasks import compute_sum
 
 redis_client: Redis | None = None
-rabbitmq_connection: aio_pika.RobustConnection | None = None
+rabbitmq_connection: AbstractRobustConnection | None = None
 instrumentator = Instrumentator()
 
 if TYPE_CHECKING:
@@ -58,7 +60,7 @@ class TaskStatusResponse(BaseModel):
 
 
 @asynccontextmanager
-async def lifespan(application: FastAPI):
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     global redis_client, rabbitmq_connection, minio_client
 
     if settings.sentry_dsn:
@@ -66,13 +68,18 @@ async def lifespan(application: FastAPI):
 
     await db.wait_for_database()
 
-    redis_client = Redis.from_url(
-        settings.redis_url, encoding="utf-8", decode_responses=True
+    redis_client = cast(
+        Redis,
+        Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True),
     )
-    await redis_client.ping()
+    ping_result = await _await_bool(redis_client.ping())
+    assert ping_result is True
 
-    rabbitmq_connection = await aio_pika.connect_robust(settings.celery_broker_url)
-    channel = await rabbitmq_connection.channel()
+    connection: AbstractRobustConnection = await aio_pika.connect_robust(
+        settings.celery_broker_url
+    )
+    rabbitmq_connection = connection
+    channel = await connection.channel()
     await channel.close()
 
     minio_client = _build_minio_client()
@@ -94,7 +101,13 @@ async def lifespan(application: FastAPI):
 app.router.lifespan_context = lifespan
 
 
-def _build_minio_client():
+async def _await_bool(value: Awaitable[bool] | bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    return await value
+
+
+def _build_minio_client() -> Minio:
     from minio import Minio
 
     parsed = urlparse(settings.minio_endpoint)
@@ -122,8 +135,10 @@ async def _check_redis() -> DependencyStatus:
     if client is None:
         return DependencyStatus(status="error", detail="Redis client not ready")
     try:
-        await client.ping()
-        return DependencyStatus(status="ok")
+        result = await _await_bool(client.ping())
+        if result is True:
+            return DependencyStatus(status="ok")
+        return DependencyStatus(status="error", detail="ping returned false")
     except Exception as exc:  # pragma: no cover - runtime safeguard
         return DependencyStatus(status="error", detail=str(exc))
 

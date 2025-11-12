@@ -83,14 +83,14 @@ explicit_package_bases = true
 namespace_packages = true
 # Point mypy at all package roots so imports like `backend.*` and `bot.*` resolve.
 # Set mypy_path to resolve backend, bot, and user_service packages from their root locations
-mypy_path = "src:apps/backend/src:apps/bot/src"
+mypy_path = "src:apps/backend/src:apps/bot/src:."
 # Check specific packages individually to avoid namespace package conflicts
 files = [
     "src/bot",
     "src/user_service",
     "apps/backend/src/backend",
     "apps/bot/src/bot_runtime",
-    "backend/app",
+    "backend.app",
     "migrations",
     "tests",
     "apps/backend/tests",
