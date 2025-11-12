@@ -90,8 +90,12 @@ def track_analytics_event(
         async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             args_tuple = cast(tuple[Any, ...], args)
             kwargs_mapping = cast(dict[str, Any], kwargs)
-            session_raw = _resolve_argument_value(func, args_tuple, kwargs_mapping, SESSION_PARAM_NAMES)
-            user_raw = _resolve_argument_value(func, args_tuple, kwargs_mapping, USER_PARAM_NAMES)
+            session_raw = _resolve_argument_value(
+                func, args_tuple, kwargs_mapping, SESSION_PARAM_NAMES
+            )
+            user_raw = _resolve_argument_value(
+                func, args_tuple, kwargs_mapping, USER_PARAM_NAMES
+            )
 
             session: AsyncSession | None = (
                 session_raw
@@ -115,7 +119,9 @@ def track_analytics_event(
                 })
 
             if session is not None:
-                await _track_event_with_session(session, event_type, event_data, user_id)
+                await _track_event_with_session(
+                    session, event_type, event_data, user_id
+                )
 
             try:
                 return await func(*args, **kwargs)
@@ -127,7 +133,9 @@ def track_analytics_event(
                         "error_type": type(e).__name__,
                     })
                     failure_event_type = _get_failure_event_type(event_type)
-                    await _track_event_with_session(session, failure_event_type, failure_event_data, user_id)
+                    await _track_event_with_session(
+                        session, failure_event_type, failure_event_data, user_id
+                    )
                 raise
 
         return async_wrapper
@@ -149,7 +157,9 @@ def _get_failure_event_type(success_event_type: AnalyticsEvent) -> AnalyticsEven
 class AnalyticsTracker:
     """Helper class for manual analytics tracking."""
     
-    def __init__(self, analytics_service: AnalyticsService, session: AsyncSession) -> None:
+    def __init__(
+        self, analytics_service: AnalyticsService, session: AsyncSession
+    ) -> None:
         self.analytics_service = analytics_service
         self.session = session
     

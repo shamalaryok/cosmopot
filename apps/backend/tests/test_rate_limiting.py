@@ -6,9 +6,9 @@ from typing import cast
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
+from fakeredis import aioredis as fakeredis
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
-from fakeredis import aioredis as fakeredis
 
 from backend.security.rate_limit import RateLimitMiddleware, RedisRateLimiter
 

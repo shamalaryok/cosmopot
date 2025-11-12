@@ -4,7 +4,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Protocol, Union, cast
+from typing import Protocol, cast
 
 import structlog
 from sqlalchemy import func, select
@@ -24,7 +24,7 @@ class UserProtocol(Protocol):
     """Protocol for user models used in referral operations."""
 
     @property
-    def id(self) -> Union[int, uuid.UUID]:
+    def id(self) -> int | uuid.UUID:
         """Unique identifier for the user."""
         ...
 
@@ -72,7 +72,8 @@ class ReferralService:
         # Create a referral record for the code (placeholder with self as referred_user)
         referral = Referral(
             referrer_id=cast(uuid.UUID, user.id),
-            referred_user_id=cast(uuid.UUID, user.id),  # Temporary, updated during actual referral
+            # Temporary, updated during actual referral
+            referred_user_id=cast(uuid.UUID, user.id),
             referral_code=code,
             tier=ReferralTier.TIER1,
         )

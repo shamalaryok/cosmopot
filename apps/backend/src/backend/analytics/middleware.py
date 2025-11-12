@@ -8,10 +8,10 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any, cast
 
 import structlog
-from structlog.typing import FilteringBoundLogger
 from fastapi import Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
+from structlog.typing import FilteringBoundLogger
 
 from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.service import AnalyticsService
@@ -23,12 +23,16 @@ logger: FilteringBoundLogger = structlog.get_logger(__name__)
 class AnalyticsMiddleware(BaseHTTPMiddleware):
     """Middleware to automatically track API requests and responses."""
 
-    def __init__(self, app: Any, analytics_service: AnalyticsService, settings: Settings) -> None:
+    def __init__(
+        self, app: Any, analytics_service: AnalyticsService, settings: Settings
+    ) -> None:
         super().__init__(app)
         self.analytics_service = analytics_service
         self.settings = settings
 
-    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request and track analytics events."""
         if not self.settings.analytics.enabled:
             return await call_next(request)

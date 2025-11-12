@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Literal
 
-from redis.asyncio import Redis
 import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
+from redis.asyncio import Redis
 
 from backend.core.config import Settings, get_settings
 from backend.observability import add_breadcrumb

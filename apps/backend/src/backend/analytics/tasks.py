@@ -2,7 +2,7 @@
 
 import asyncio
 import datetime as dt
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Coroutine
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from typing import Any, cast
 
@@ -10,7 +10,10 @@ import schedule
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.analytics.aggregation import AggregatedMetrics, AnalyticsAggregationService
+from backend.analytics.aggregation import (
+    AggregatedMetrics,
+    AnalyticsAggregationService,
+)
 from backend.analytics.service import AnalyticsService
 from backend.core.config import Settings, get_settings
 from backend.db.dependencies import get_db_session
@@ -96,7 +99,9 @@ class AnalyticsScheduler:
                 import time
                 time.sleep(5)  # Wait before retrying
 
-    def _run_async_task(self, task_func: Callable[[], Coroutine[Any, Any, None]]) -> None:
+    def _run_async_task(
+        self, task_func: Callable[[], Coroutine[Any, Any, None]]
+    ) -> None:
         """Run an async task in a new event loop."""
         try:
             asyncio.run(task_func())
@@ -111,8 +116,8 @@ class AnalyticsScheduler:
         """Process pending analytics events."""
         try:
             async with _get_session() as session:
-                result: dict[str, int] = await self.analytics_service.process_pending_events(
-                    session
+                result: dict[str, int] = (
+                    await self.analytics_service.process_pending_events(session)
                 )
                 logger.info(
                     "Processed pending analytics events",

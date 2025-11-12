@@ -12,10 +12,10 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 if TYPE_CHECKING:
     from contextlib import AbstractAsyncContextManager as AsyncContextManager
-    from fastapi import FastAPI, Request
+
+    from fastapi import FastAPI
     from prometheus_client.registry import CollectorRegistry
     from prometheus_fastapi_instrumentator.metrics import Info
-    from starlette.responses import Response
 
 # Business metrics
 GENERATION_REQUESTS_TOTAL = Counter(

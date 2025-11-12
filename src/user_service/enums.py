@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import ClassVar
 
 
 class UserRole(StrEnum):
@@ -97,7 +96,9 @@ class GenerationTaskStatus(StrEnum):
 
     @classmethod
     def get_by_code(cls, code: str) -> GenerationTaskStatus:
-        """Look up a status by code string, normalizing case and handling legacy aliases.
+        """Look up a status by code string.
+
+        Normalizes case and handles legacy aliases.
 
         Args:
             code: The status code string to look up
@@ -124,9 +125,12 @@ class GenerationTaskStatus(StrEnum):
         try:
             return cls(normalized)
         except ValueError as exc:
-            valid_codes = sorted({member.value for member in cls} | set(legacy_aliases.keys()))
+            valid_codes = sorted(
+                {member.value for member in cls} | set(legacy_aliases.keys())
+            )
             raise ValueError(
-                f"invalid status code '{code}', must be one of: {', '.join(valid_codes)}"
+                f"invalid status code '{code}', must be one of: "
+                f"{', '.join(valid_codes)}"
             ) from exc
 
     @classmethod
@@ -150,7 +154,8 @@ class GenerationTaskStatus(StrEnum):
             return resolved.value
 
         raise ValueError(
-            f"status must be a GenerationTaskStatus or string, got {type(status).__name__}"
+            f"status must be a GenerationTaskStatus or string, "
+            f"got {type(status).__name__}"
         )
 
 
