@@ -22,14 +22,11 @@ from bot_runtime.middlewares import (
 )
 from bot_runtime.services.auth import TelegramAuthGateway
 
-FakeRedisFactory: type[Redis] | None
-
 try:  # pragma: no cover - optional dependency in production
     from fakeredis.aioredis import FakeRedis as _FakeRedis
+    FakeRedisFactory: type[Redis] | None = _FakeRedis
 except ModuleNotFoundError:  # pragma: no cover - fakeredis is only needed for tests
     FakeRedisFactory = None
-else:
-    FakeRedisFactory = _FakeRedis
 
 __all__ = ["BotRuntime"]
 

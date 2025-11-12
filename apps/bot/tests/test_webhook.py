@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -48,7 +48,6 @@ async def test_webhook_route_dispatches_update(
                     },
                 }
             )
-            runtime.bot.session.make_request = make_request_mock
 
             app = FastAPI()
             app.state.settings = bot_settings
@@ -69,21 +68,24 @@ async def test_webhook_route_dispatches_update(
                 }
             )
 
+            token = bot_settings.telegram_webhook_secret_token
+            assert token is not None
             headers = {
-                "X-Telegram-Bot-Api-Secret-Token": (
-                    bot_settings.telegram_webhook_secret_token.get_secret_value()
-                )
+                "X-Telegram-Bot-Api-Secret-Token": token.get_secret_value()
             }
 
             asgi_transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(
                 transport=asgi_transport, base_url="http://testserver"
             ) as test_client:
-                response = await test_client.post(
-                    "/api/v1/bot/webhook",
-                    json=update.model_dump(mode="json"),
-                    headers=headers,
-                )
+                with patch.object(
+                    runtime.bot.session, "make_request", new=make_request_mock
+                ):
+                    response = await test_client.post(
+                        "/api/v1/bot/webhook",
+                        json=update.model_dump(mode="json"),
+                        headers=headers,
+                    )
 
             assert response.status_code == httpx.codes.NO_CONTENT
             make_request_mock.assert_awaited()

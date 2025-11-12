@@ -9,13 +9,13 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 import websockets
 from fastapi import status
+from websockets import exceptions as ws_exceptions
 from websockets.exceptions import ConnectionClosed, WebSocketException
 
-try:  # websockets >= 11
-    from websockets.exceptions import InvalidStatus
-except ImportError:  # pragma: no cover - fallback for websockets < 11
-    from websockets.exceptions import InvalidStatusCode as InvalidStatus
-
+InvalidStatusCandidate = getattr(ws_exceptions, "InvalidStatus", None)
+if InvalidStatusCandidate is None:
+    InvalidStatusCandidate = getattr(ws_exceptions, "InvalidStatusCode", WebSocketException)
+InvalidStatus = cast(type[BaseException], InvalidStatusCandidate)
 
 JSONPrimitive = str | int | float | bool | None
 JSONValue: TypeAlias = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
@@ -130,20 +130,7 @@ class BackendGateway:
             response = await client.post("/api/v1/auth/login", json=payload)
         if response.status_code == status.HTTP_200_OK:
             data = self._json_object(response)
-            user_value = data.get("user")
-            user_payload: JSONDict | None = (
-                cast(JSONDict, user_value) if isinstance(user_value, dict) else None
-            )
-            return AuthTokens(
-                access_token=data["access_token"],
-                refresh_token=data.get("refresh_token"),
-                expires_in=data.get("expires_in"),
-                refresh_expires_in=data.get("refresh_expires_in"),
-                session_id=(
-                    str(data.get("session_id")) if data.get("session_id") else None
-                ),
-                user=user_payload,
-            )
+            return self._parse_auth_tokens(data)
         self._raise_error(response)
         raise BackendError("Authentication failed")
 
@@ -155,20 +142,7 @@ class BackendGateway:
             response = await client.post("/api/v1/auth/refresh", json=payload)
         if response.status_code == status.HTTP_200_OK:
             data = self._json_object(response)
-            user_value = data.get("user")
-            user_payload: JSONDict | None = (
-                cast(JSONDict, user_value) if isinstance(user_value, dict) else None
-            )
-            return AuthTokens(
-                access_token=data["access_token"],
-                refresh_token=data.get("refresh_token"),
-                expires_in=data.get("expires_in"),
-                refresh_expires_in=data.get("refresh_expires_in"),
-                session_id=(
-                    str(data.get("session_id")) if data.get("session_id") else None
-                ),
-                user=user_payload,
-            )
+            return self._parse_auth_tokens(data)
         self._raise_error(response)
         raise UnauthorizedError(
             "Token refresh failed", status_code=response.status_code
@@ -376,6 +350,41 @@ class BackendGateway:
                 "Unexpected JSON payload", status_code=response.status_code
             )
         return cast(JSONDict, payload)
+
+    @staticmethod
+    def _parse_auth_tokens(data: JSONDict) -> AuthTokens:
+        """Parse AuthTokens from backend JSON response."""
+        access_token_raw = data["access_token"]
+        if not isinstance(access_token_raw, str):
+            raise BackendError("Invalid access_token type")
+        refresh_token_raw = data.get("refresh_token")
+        refresh_token: str | None = (
+            refresh_token_raw if isinstance(refresh_token_raw, str) else None
+        )
+        expires_in_raw = data.get("expires_in")
+        expires_in: int | None = (
+            expires_in_raw if isinstance(expires_in_raw, int) else None
+        )
+        refresh_expires_in_raw = data.get("refresh_expires_in")
+        refresh_expires_in: int | None = (
+            refresh_expires_in_raw if isinstance(refresh_expires_in_raw, int) else None
+        )
+        session_id_raw = data.get("session_id")
+        session_id: str | None = (
+            str(session_id_raw) if session_id_raw is not None else None
+        )
+        user_value = data.get("user")
+        user_payload: JSONDict | None = (
+            user_value if isinstance(user_value, dict) else None
+        )
+        return AuthTokens(
+            access_token=access_token_raw,
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+            refresh_expires_in=refresh_expires_in,
+            session_id=session_id,
+            user=user_payload,
+        )
 
     @staticmethod
     def _raise_error(response: httpx.Response) -> None:

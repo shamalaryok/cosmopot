@@ -59,9 +59,7 @@ async def test_start_command_authenticates_and_persists_state(
                 mock_answer.assert_awaited()
 
             key = StorageKey(bot_id=runtime.bot.id or 0, chat_id=100, user_id=55)
-            data = await runtime.dispatcher.storage.get_data(
-                bot=key.bot_id, chat=key.chat_id, user=key.user_id
-            )
+            data = await runtime.dispatcher.storage.get_data(key)
             assert data["access_token"] == "token-abcdef-123456"
         finally:
             await runtime.shutdown()
