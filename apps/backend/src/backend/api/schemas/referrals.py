@@ -45,7 +45,9 @@ class ReferralStatsResponse(BaseModel):
         """Validate decimal fields."""
         if isinstance(v, str):
             return Decimal(v)
-        return v
+        if isinstance(v, Decimal):
+            return v
+        return Decimal(str(v))
 
 
 class WithdrawalRequest(BaseModel):
@@ -63,7 +65,9 @@ class WithdrawalRequest(BaseModel):
         """Validate amount field."""
         if isinstance(v, str):
             return Decimal(v)
-        return v
+        if isinstance(v, Decimal):
+            return v
+        return Decimal(str(v))
 
 
 class WithdrawalResponse(BaseModel):
@@ -81,7 +85,9 @@ class WithdrawalResponse(BaseModel):
         """Validate amount field."""
         if isinstance(v, str):
             return Decimal(v)
-        return v
+        if isinstance(v, Decimal):
+            return v
+        return Decimal(str(v))
 
 
 class WithdrawalListResponse(BaseModel):
