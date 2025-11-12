@@ -51,8 +51,9 @@ class MetadataAliasMixin:
             original_init(self, *args, **init_kwargs)
 
         # Cast to Any to avoid mypy error when setting custom attribute on function
-        cast(Any, wrapped_init).__metadata_alias_wrapped__ = True
-        setattr(cls, "__init__", cast(Any, wrapped_init))
+        wrapped_init_any = cast(Any, wrapped_init)
+        wrapped_init_any.__metadata_alias_wrapped__ = True
+        cast(Any, cls).__init__ = wrapped_init_any
 
     @property
     def metadata_dict(self) -> dict[str, Any]:
