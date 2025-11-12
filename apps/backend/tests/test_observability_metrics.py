@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from unittest.mock import MagicMock, patch
-
 import pytest
-from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 
-from backend.app import create_app
-from backend.core.config import Settings
 from backend.observability import metrics_service
 from backend.observability.metrics import (
     ACTIVE_GENERATIONS,
@@ -23,7 +17,10 @@ from backend.observability.metrics import (
 
 
 @pytest.mark.skip(
-    reason="Complex database and middleware setup required - covered by integration tests"
+    reason=(
+        "Complex database and middleware setup required - "
+        "covered by integration tests"
+    )
 )
 def test_metrics_endpoint_accessible() -> None:
     """Test that metrics endpoint is accessible."""
