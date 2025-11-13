@@ -56,8 +56,8 @@ class GenerationTask(Base, MetadataAliasMixin, UUIDPrimaryKeyMixin, TimestampMix
     s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)
     s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     input_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSONType(), default=dict, nullable=True
+    meta_data: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONType(), default=dict, nullable=False
     )
     error_message: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
