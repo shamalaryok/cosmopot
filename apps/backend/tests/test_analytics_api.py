@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
 from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.schemas import AnalyticsConfigResponse, AnalyticsEventCreate
@@ -24,9 +24,10 @@ class TestAnalyticsAPI:
         )
         return service
 
-    def test_get_analytics_config(
+    @pytest.mark.asyncio()
+    async def test_get_analytics_config(
         self,
-        client: TestClient,
+        async_client: AsyncClient,
         mock_analytics_service: MagicMock,
     ) -> None:
         """Test fetching analytics configuration."""
@@ -35,7 +36,7 @@ class TestAnalyticsAPI:
         ) as mock_get_service:
             mock_get_service.return_value = mock_analytics_service
 
-            response = client.get("/api/v1/analytics/config")
+            response = await async_client.get("/api/v1/analytics/config")
 
         assert response.status_code == 200
         config = AnalyticsConfigResponse.model_validate(response.json())
@@ -48,9 +49,10 @@ class TestAnalyticsAPI:
         assert isinstance(config.batch_size, int)
         assert isinstance(config.flush_interval_seconds, int)
 
-    def test_track_event_success(
+    @pytest.mark.asyncio()
+    async def test_track_event_success(
         self,
-        client: TestClient,
+        async_client: AsyncClient,
         mock_analytics_service: MagicMock,
     ) -> None:
         """Test successful event tracking."""
@@ -76,7 +78,7 @@ class TestAnalyticsAPI:
                 user_properties={"prop": "value"},
             )
 
-            response = client.post(
+            response = await async_client.post(
                 "/api/v1/analytics/events",
                 json=event_data.model_dump(),
             )
@@ -87,7 +89,8 @@ class TestAnalyticsAPI:
         assert response_data["event_data"] == {"test": "data"}
         assert response_data["user_properties"] == {"prop": "value"}
 
-    def test_track_event_invalid_event_type(self, client: TestClient) -> None:
+    @pytest.mark.asyncio()
+    async def test_track_event_invalid_event_type(self, async_client: AsyncClient) -> None:
         """Test tracking an event with an invalid type."""
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
@@ -101,7 +104,7 @@ class TestAnalyticsAPI:
                 "event_data": {"test": "data"},
             }
 
-            response = client.post(
+            response = await async_client.post(
                 "/api/v1/analytics/events",
                 json=event_data,
             )
@@ -109,7 +112,8 @@ class TestAnalyticsAPI:
         assert response.status_code == 400
         assert "Invalid event type" in response.json()["detail"]
 
-    def test_list_events(self, client: TestClient) -> None:
+    @pytest.mark.asyncio()
+    async def test_list_events(self, async_client: AsyncClient) -> None:
         """Test listing analytics events."""
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
@@ -118,7 +122,7 @@ class TestAnalyticsAPI:
             mock_user.return_value = MagicMock(id="test-user-id")
             mock_rate_limiter.return_value.check = AsyncMock()
 
-            response = client.get(
+            response = await async_client.get(
                 "/api/v1/analytics/events",
                 params={"page": 1, "page_size": 10},
             )
@@ -130,7 +134,8 @@ class TestAnalyticsAPI:
         assert response_data["page"] == 1
         assert response_data["page_size"] == 10
 
-    def test_list_events_with_filters(self, client: TestClient) -> None:
+    @pytest.mark.asyncio()
+    async def test_list_events_with_filters(self, async_client: AsyncClient) -> None:
         """Test listing analytics events with filters."""
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
@@ -139,7 +144,7 @@ class TestAnalyticsAPI:
             mock_user.return_value = MagicMock(id="test-user-id")
             mock_rate_limiter.return_value.check = AsyncMock()
 
-            response = client.get(
+            response = await async_client.get(
                 "/api/v1/analytics/events",
                 params={
                     "event_type": "signup_completed",
@@ -153,7 +158,8 @@ class TestAnalyticsAPI:
         response_data = response.json()
         assert "events" in response_data
 
-    def test_get_dashboard_metrics(self, client: TestClient) -> None:
+    @pytest.mark.asyncio()
+    async def test_get_dashboard_metrics(self, async_client: AsyncClient) -> None:
         """Test getting dashboard metrics."""
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
@@ -179,7 +185,7 @@ class TestAnalyticsAPI:
             ]
             mock_metrics.side_effect = [mock_daily_metrics, mock_monthly_metrics]
 
-            response = client.get("/api/v1/analytics/metrics/dashboard")
+            response = await async_client.get("/api/v1/analytics/metrics/dashboard")
 
         assert response.status_code == 200
         dashboard_data = response.json()
@@ -191,7 +197,8 @@ class TestAnalyticsAPI:
         assert dashboard_data["churn_rate"] == 5.5
         assert dashboard_data["ltv_cac_ratio"] == 3.2
 
-    def test_get_aggregated_metrics(self, client: TestClient) -> None:
+    @pytest.mark.asyncio()
+    async def test_get_aggregated_metrics(self, async_client: AsyncClient) -> None:
         """Test getting aggregated metrics."""
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
@@ -210,7 +217,7 @@ class TestAnalyticsAPI:
             )
             mock_metrics.return_value = [mock_metric]
 
-            response = client.get(
+            response = await async_client.get(
                 "/api/v1/analytics/metrics/aggregated",
                 params={
                     "metric_type": "dau",
@@ -227,9 +234,10 @@ class TestAnalyticsAPI:
         assert metrics_data[0]["period"] == "daily"
         assert metrics_data[0]["value"] == 100
 
-    def test_calculate_metrics(
+    @pytest.mark.asyncio()
+    async def test_calculate_metrics(
         self,
-        client: TestClient,
+        async_client: AsyncClient,
         mock_analytics_service: MagicMock,
     ) -> None:
         """Test calculating metrics for a date range."""
@@ -251,7 +259,7 @@ class TestAnalyticsAPI:
             )
             mock_aggregation.return_value = mock_service
 
-            response = client.post(
+            response = await async_client.post(
                 "/api/v1/analytics/metrics/calculate",
                 params={
                     "start_date": "2024-01-01",
@@ -268,9 +276,10 @@ class TestAnalyticsAPI:
         assert metrics_data["end_date"] == "2024-01-03"
         assert len(metrics_data["metrics"]) == 3
 
-    def test_process_events_admin_only(
+    @pytest.mark.asyncio()
+    async def test_process_events_admin_only(
         self,
-        client: TestClient,
+        async_client: AsyncClient,
         mock_analytics_service: MagicMock,
     ) -> None:
         """Test that processing events requires admin access."""
@@ -283,7 +292,7 @@ class TestAnalyticsAPI:
             mock_user.return_value = regular_user
             mock_rate_limiter.return_value.check = AsyncMock()
 
-            response = client.post("/api/v1/analytics/process-events")
+            response = await async_client.post("/api/v1/analytics/process-events")
             assert response.status_code == 403
             assert "Admin access required" in response.json()["detail"]
 
@@ -300,7 +309,7 @@ class TestAnalyticsAPI:
                 mock_get_service.return_value = mock_analytics_service
                 mock_session.return_value.__aenter__.return_value = AsyncMock()
 
-                response = client.post("/api/v1/analytics/process-events")
+                response = await async_client.post("/api/v1/analytics/process-events")
 
         assert response.status_code == 200
         result = response.json()
