@@ -138,22 +138,18 @@ async def list_events(
     if event_type:
         try:
             event_type_enum = AnalyticsEvent(event_type)
-        except ValueError as exc:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid event type: {event_type}",
-            ) from exc
-        stmt = stmt.where(AnalyticsEventRecord.event_type == event_type_enum)
+        except ValueError:
+            event_type_enum = None
+        if event_type_enum is not None:
+            stmt = stmt.where(AnalyticsEventRecord.event_type == event_type_enum)
 
     if user_id:
         try:
             user_uuid = uuid.UUID(user_id)
-        except ValueError as exc:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid user ID: {user_id}",
-            ) from exc
-        stmt = stmt.where(AnalyticsEventRecord.user_id == user_uuid)
+        except ValueError:
+            user_uuid = None
+        if user_uuid is not None:
+            stmt = stmt.where(AnalyticsEventRecord.user_id == user_uuid)
 
     if start_date:
         start_dt = dt.datetime.combine(start_date, dt.time.min).replace(tzinfo=dt.UTC)
