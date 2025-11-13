@@ -70,10 +70,8 @@ def _serialize_metric_datetime(value: Any) -> str:
     """Serialize datetime-like values to ISO formatted strings."""
     if isinstance(value, dt.datetime):
         if value.tzinfo is None:
-            value = value.replace(tzinfo=dt.UTC)
-        else:
-            value = value.astimezone(dt.UTC)
-        return value.isoformat()
+            return value.replace(tzinfo=dt.UTC).isoformat()
+        return value.astimezone(dt.UTC).isoformat()
 
     if isinstance(value, dt.date):
         combined = dt.datetime.combine(value, dt.time.min, tzinfo=dt.UTC)
