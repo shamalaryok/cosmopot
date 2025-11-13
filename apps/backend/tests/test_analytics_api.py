@@ -374,6 +374,7 @@ class TestAnalyticsAPI:
             mock_user.return_value = admin_user
 
             from backend.analytics.dependencies import get_analytics_service
+
             get_analytics_service.cache_clear()
 
             with (
