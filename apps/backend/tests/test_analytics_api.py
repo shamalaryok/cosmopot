@@ -377,7 +377,9 @@ class TestAnalyticsAPI:
             from backend.analytics.dependencies import get_analytics_service
 
             get_analytics_service.cache_clear()
-            app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
+            app.dependency_overrides[get_analytics_service] = (
+                lambda: mock_analytics_service
+            )
 
             try:
                 with patch("backend.analytics.routes.get_db_session") as mock_session:
