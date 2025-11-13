@@ -39,23 +39,29 @@ class TestAnalyticsAggregationService:
             mock_get_metrics.side_effect = [
                 {"total_events": 10, "unique_users": 8},  # GENERATION_COMPLETED
                 {"total_events": 2, "unique_users": 2},  # GENERATION_FAILED
-                {"total_events": 5, "unique_users": 4},  # PAYMENT_COMPLETED
-                {"total_events": 1, "unique_users": 1},  # PAYMENT_FAILED
                 {"total_events": 3, "unique_users": 3},  # SUBSCRIPTION_CREATED
                 {"total_events": 1, "unique_users": 1},  # SUBSCRIPTION_CANCELLED
-                {"total_events": 7, "unique_users": 6},  # REFERRAL_SENT
                 {"total_events": 5, "unique_users": 5},  # REFERRAL_ACCEPTED
             ]
 
-            with patch("sqlalchemy.select") as mock_select:
-                mock_result = MagicMock()
-                mock_result.scalar.return_value = 15
-                mock_select.return_value.execute.return_value = mock_result
+            # Mock session.execute to return result objects with scalar values
+            # Each call to execute should return a synchronous result object
+            mock_results = [
+                MagicMock(scalar_one=MagicMock(return_value=15)),  # DAU
+                MagicMock(scalar_one=MagicMock(return_value=10)),  # new_registrations
+                MagicMock(scalar=MagicMock(return_value=Decimal("999.99"))),  # revenue
+                MagicMock(scalar_one=MagicMock(return_value=5)),  # successful_payments
+                MagicMock(scalar_one=MagicMock(return_value=1)),  # failed_payments
+                MagicMock(scalar_one=MagicMock(return_value=7)),  # referrals_sent
+                MagicMock(scalar_one=MagicMock(return_value=10)),  # new_registrations (for conversion)
+                MagicMock(scalar_one=MagicMock(return_value=5)),  # successful_payments (for conversion)
+            ]
+            mock_session.execute.side_effect = mock_results
 
-                metrics = await aggregation_service.calculate_daily_metrics(
-                    mock_session,
-                    dt.date(2024, 1, 1),
-                )
+            metrics = await aggregation_service.calculate_daily_metrics(
+                mock_session,
+                dt.date(2024, 1, 1),
+            )
 
         assert "dau" in metrics
         assert "new_registrations" in metrics
@@ -79,7 +85,7 @@ class TestAnalyticsAggregationService:
         assert metrics["referrals_sent"] == 7
         assert metrics["referrals_accepted"] == 5
 
-        assert mock_create.call_count == 13
+        assert mock_create.call_count == 12
 
     @pytest.mark.asyncio
     async def test_calculate_weekly_metrics(
