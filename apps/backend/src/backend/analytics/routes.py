@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.analytics.aggregation import AnalyticsAggregationService
@@ -28,18 +28,32 @@ from backend.analytics.schemas import (
     AnalyticsMetricsResponse,
 )
 from backend.analytics.service import AnalyticsService
-from backend.api.dependencies.users import (
-    get_current_user,
-    get_current_user_optional,
+from backend.auth.dependencies import (
+    CurrentUser,
+    get_current_user as auth_get_current_user,
+    get_rate_limiter,
 )
-from backend.auth.dependencies import get_rate_limiter
 from backend.auth.rate_limiter import RateLimiter
 from backend.core.config import Settings, get_settings
 from backend.db.dependencies import get_db_session
 from backend.db.models import PaginationParams, paginate_query
-from user_service.models import User
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+
+
+def get_current_user(request: Request) -> CurrentUser:
+    """Get authenticated user (required)."""
+    return auth_get_current_user(request)
+
+
+def get_current_user_optional(request: Request) -> CurrentUser | None:
+    """Get authenticated user (optional, returns None if not authenticated)."""
+    try:
+        return auth_get_current_user(request)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            return None
+        raise
 
 
 @router.post(
@@ -51,7 +65,7 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 async def track_event(
     event_data: AnalyticsEventCreate,
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> AnalyticsEventResponse:
@@ -113,7 +127,7 @@ async def list_events(
     start_date: dt.date | None = Query(None, description="Filter by start date"),
     end_date: dt.date | None = Query(None, description="Filter by end date"),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
 ) -> AnalyticsEventListResponse:
     """List analytics events with filtering and pagination."""
@@ -175,7 +189,7 @@ async def list_events(
 )
 async def get_dashboard_metrics(
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     aggregation_service: AnalyticsAggregationService = Depends(
         get_analytics_aggregation_service
@@ -261,7 +275,7 @@ async def get_aggregated_metrics_endpoint(
     start_date: dt.date | None = Query(None, description="Filter by start date"),
     end_date: dt.date | None = Query(None, description="Filter by end date"),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
 ) -> list[AggregatedMetricsResponse]:
     """Get aggregated analytics metrics."""
@@ -295,7 +309,7 @@ async def calculate_metrics(
     end_date: dt.date = Query(..., description="End date for calculation"),
     period: str = Query("daily", description="Period type (daily, weekly, monthly)"),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     aggregation_service: AnalyticsAggregationService = Depends(
         get_analytics_aggregation_service
@@ -382,7 +396,7 @@ async def calculate_metrics(
     summary="Get analytics configuration",
 )
 async def get_analytics_config(
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: CurrentUser | None = Depends(get_current_user_optional),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> AnalyticsConfigResponse:
@@ -407,7 +421,7 @@ async def get_analytics_config(
 )
 async def process_pending_events(
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> dict[str, int]:
@@ -415,7 +429,7 @@ async def process_pending_events(
     await rate_limiter.check("analytics:process_events", str(current_user.id))
 
     # Check if user is admin
-    if current_user.role.value != "admin":  # Assuming role enum
+    if current_user.role.value != "admin":
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail="Admin access required",

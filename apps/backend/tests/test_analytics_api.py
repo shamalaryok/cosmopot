@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import uuid
+from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 
 from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.schemas import AnalyticsConfigResponse, AnalyticsEventCreate
+from backend.auth.dependencies import CurrentUser
+from backend.auth.enums import UserRole
 
 
 class TestAnalyticsAPI:
@@ -52,36 +58,70 @@ class TestAnalyticsAPI:
     @pytest.mark.asyncio()
     async def test_track_event_success(
         self,
+        app: FastAPI,
         async_client: AsyncClient,
         mock_analytics_service: MagicMock,
     ) -> None:
         """Test successful event tracking."""
-        with (
-            patch("backend.analytics.routes.get_analytics_service") as mock_get_service,
-            patch("backend.analytics.routes.get_current_user") as mock_user,
-            patch("backend.analytics.routes.get_db_session") as mock_session,
-            patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
-        ):
-            mock_get_service.return_value = mock_analytics_service
-            mock_user.return_value = MagicMock(id="test-user-id")
-            mock_session.return_value.__aenter__.return_value = AsyncMock()
-            mock_rate_limiter.return_value.check = AsyncMock()
+        from backend.analytics.dependencies import get_analytics_service
+        from backend.db.dependencies import get_db_session
 
-            mock_event = MagicMock()
-            mock_event.id = "test-event-id"
-            mock_event.event_type = AnalyticsEvent.SIGNUP_COMPLETED
-            mock_analytics_service.track_event.return_value = mock_event
+        # Override dependencies
+        mock_session_obj = AsyncMock()
+        mock_session_obj.commit = AsyncMock()
+        mock_session_obj.refresh = AsyncMock()
+        mock_session_obj.rollback = AsyncMock()
 
-            event_data = AnalyticsEventCreate(
-                event_type="signup_completed",
-                event_data={"test": "data"},
-                user_properties={"prop": "value"},
-            )
+        async def override_get_db_session() -> AsyncIterator[AsyncMock]:
+            yield mock_session_obj
 
-            response = await async_client.post(
-                "/api/v1/analytics/events",
-                json=event_data.model_dump(),
-            )
+        app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
+        app.dependency_overrides[get_db_session] = override_get_db_session
+
+        try:
+            with (
+                patch("backend.analytics.routes.auth_get_current_user") as mock_user,
+                patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
+            ):
+                mock_user.return_value = CurrentUser(
+                    id=uuid.uuid4(),
+                    email="test@example.com",
+                    role=UserRole.USER,
+                )
+
+                mock_rate_limiter.return_value.check = AsyncMock()
+
+                mock_event = SimpleNamespace(
+                    id=str(uuid.uuid4()),
+                    user_id=str(uuid.uuid4()),
+                    event_type=AnalyticsEvent.SIGNUP_COMPLETED,
+                    event_data={"test": "data"},
+                    user_properties={"prop": "value"},
+                    provider="both",
+                    created_at="2025-01-01T00:00:00Z",
+                    processed_at=None,
+                    is_successful=True,
+                    retry_count=0,
+                    last_error=None,
+                    session_id=None,
+                    ip_address=None,
+                    user_agent=None,
+                )
+                mock_analytics_service.track_event.return_value = mock_event
+
+                event_data = AnalyticsEventCreate(
+                    event_type="signup_completed",
+                    event_data={"test": "data"},
+                    user_properties={"prop": "value"},
+                )
+
+                response = await async_client.post(
+                    "/api/v1/analytics/events",
+                    json=event_data.model_dump(),
+                )
+        finally:
+            app.dependency_overrides.pop(get_analytics_service, None)
+            app.dependency_overrides.pop(get_db_session, None)
 
         assert response.status_code == 201
         response_data = response.json()
@@ -96,10 +136,14 @@ class TestAnalyticsAPI:
     ) -> None:
         """Test tracking an event with an invalid type."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
         ):
-            mock_user.return_value = MagicMock(id="test-user-id")
+            mock_user.return_value = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_rate_limiter.return_value.check = AsyncMock()
 
             event_data = {
@@ -119,10 +163,14 @@ class TestAnalyticsAPI:
     async def test_list_events(self, async_client: AsyncClient) -> None:
         """Test listing analytics events."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
         ):
-            mock_user.return_value = MagicMock(id="test-user-id")
+            mock_user.return_value = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_rate_limiter.return_value.check = AsyncMock()
 
             response = await async_client.get(
@@ -141,10 +189,14 @@ class TestAnalyticsAPI:
     async def test_list_events_with_filters(self, async_client: AsyncClient) -> None:
         """Test listing analytics events with filters."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
         ):
-            mock_user.return_value = MagicMock(id="test-user-id")
+            mock_user.return_value = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_rate_limiter.return_value.check = AsyncMock()
 
             response = await async_client.get(
@@ -165,14 +217,18 @@ class TestAnalyticsAPI:
     async def test_get_dashboard_metrics(self, async_client: AsyncClient) -> None:
         """Test getting dashboard metrics."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
             patch(
                 "backend.analytics.routes.get_analytics_aggregation_service"
             ) as _mock_aggregation,
             patch("backend.analytics.routes.get_aggregated_metrics") as mock_metrics,
         ):
-            mock_user.return_value = MagicMock(id="test-user-id")
+            mock_user.return_value = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_rate_limiter.return_value.check = AsyncMock()
 
             mock_daily_metrics = [
@@ -204,11 +260,15 @@ class TestAnalyticsAPI:
     async def test_get_aggregated_metrics(self, async_client: AsyncClient) -> None:
         """Test getting aggregated metrics."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
             patch("backend.analytics.routes.get_aggregated_metrics") as mock_metrics,
         ):
-            mock_user.return_value = MagicMock(id="test-user-id")
+            mock_user.return_value = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_rate_limiter.return_value.check = AsyncMock()
 
             mock_metric = MagicMock(
@@ -245,14 +305,18 @@ class TestAnalyticsAPI:
     ) -> None:
         """Test calculating metrics for a date range."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
             patch(
                 "backend.analytics.routes.get_analytics_aggregation_service"
             ) as mock_aggregation,
             patch("backend.analytics.routes.get_db_session") as mock_session,
         ):
-            mock_user.return_value = MagicMock(id="test-user-id")
+            mock_user.return_value = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_rate_limiter.return_value.check = AsyncMock()
             mock_session.return_value.__aenter__.return_value = AsyncMock()
 
@@ -287,11 +351,14 @@ class TestAnalyticsAPI:
     ) -> None:
         """Test that processing events requires admin access."""
         with (
-            patch("backend.analytics.routes.get_current_user") as mock_user,
+            patch("backend.analytics.routes.auth_get_current_user") as mock_user,
             patch("backend.analytics.routes.get_rate_limiter") as mock_rate_limiter,
         ):
-            regular_user = MagicMock()
-            regular_user.role.value = "user"
+            regular_user = CurrentUser(
+                id=uuid.uuid4(),
+                email="test@example.com",
+                role=UserRole.USER,
+            )
             mock_user.return_value = regular_user
             mock_rate_limiter.return_value.check = AsyncMock()
 
@@ -299,13 +366,19 @@ class TestAnalyticsAPI:
             assert response.status_code == 403
             assert "Admin access required" in response.json()["detail"]
 
-            admin_user = MagicMock()
-            admin_user.role.value = "admin"
+            admin_user = CurrentUser(
+                id=uuid.uuid4(),
+                email="admin@example.com",
+                role=UserRole.ADMIN,
+            )
             mock_user.return_value = admin_user
+
+            from backend.analytics.dependencies import get_analytics_service
+            get_analytics_service.cache_clear()
 
             with (
                 patch(
-                    "backend.analytics.routes.get_analytics_service"
+                    "backend.analytics.dependencies.get_analytics_service"
                 ) as mock_get_service,
                 patch("backend.analytics.routes.get_db_session") as mock_session,
             ):
