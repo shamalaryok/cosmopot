@@ -47,14 +47,30 @@ class TestAnalyticsAggregationService:
             # Mock session.execute to return result objects with scalar values
             # Each call to execute should return a synchronous result object
             mock_results = [
-                MagicMock(scalar_one=MagicMock(return_value=15)),  # DAU
-                MagicMock(scalar_one=MagicMock(return_value=10)),  # new_registrations
-                MagicMock(scalar=MagicMock(return_value=Decimal("999.99"))),  # revenue
-                MagicMock(scalar_one=MagicMock(return_value=5)),  # successful_payments
-                MagicMock(scalar_one=MagicMock(return_value=1)),  # failed_payments
-                MagicMock(scalar_one=MagicMock(return_value=7)),  # referrals_sent
-                MagicMock(scalar_one=MagicMock(return_value=10)),  # new_registrations (for conversion)
-                MagicMock(scalar_one=MagicMock(return_value=5)),  # successful_payments (for conversion)
+                MagicMock(
+                    scalar_one=MagicMock(return_value=15),
+                ),  # DAU
+                MagicMock(
+                    scalar_one=MagicMock(return_value=10),
+                ),  # new_registrations
+                MagicMock(
+                    scalar=MagicMock(return_value=Decimal("999.99")),
+                ),  # revenue
+                MagicMock(
+                    scalar_one=MagicMock(return_value=5),
+                ),  # successful_payments
+                MagicMock(
+                    scalar_one=MagicMock(return_value=1),
+                ),  # failed_payments
+                MagicMock(
+                    scalar_one=MagicMock(return_value=7),
+                ),  # referrals_sent
+                MagicMock(
+                    scalar_one=MagicMock(return_value=10),
+                ),  # new_registrations (for conversion)
+                MagicMock(
+                    scalar_one=MagicMock(return_value=5),
+                ),  # successful_payments (for conversion)
             ]
             mock_session.execute.side_effect = mock_results
 
@@ -157,7 +173,8 @@ class TestAnalyticsAggregationService:
 
             metrics = await aggregation_service.calculate_monthly_metrics(
                 mock_session,
-                dt.date(2024, 1, 1),
+                year=2024,
+                month=1,
             )
 
         assert metrics["mau"] == 500
