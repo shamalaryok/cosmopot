@@ -346,6 +346,7 @@ class TestAnalyticsAPI:
     @pytest.mark.asyncio()
     async def test_process_events_admin_only(
         self,
+        app: FastAPI,
         async_client: AsyncClient,
         mock_analytics_service: MagicMock,
     ) -> None:
@@ -376,17 +377,17 @@ class TestAnalyticsAPI:
             from backend.analytics.dependencies import get_analytics_service
 
             get_analytics_service.cache_clear()
+            app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
 
-            with (
-                patch(
-                    "backend.analytics.dependencies.get_analytics_service"
-                ) as mock_get_service,
-                patch("backend.analytics.routes.get_db_session") as mock_session,
-            ):
-                mock_get_service.return_value = mock_analytics_service
-                mock_session.return_value.__aenter__.return_value = AsyncMock()
-
-                response = await async_client.post("/api/v1/analytics/process-events")
+            try:
+                with patch("backend.analytics.routes.get_db_session") as mock_session:
+                    mock_session.return_value.__aenter__.return_value = AsyncMock()
+                    response = await async_client.post(
+                        "/api/v1/analytics/process-events"
+                    )
+            finally:
+                app.dependency_overrides.pop(get_analytics_service, None)
+                get_analytics_service.cache_clear()
 
         assert response.status_code == 200
         result = response.json()
