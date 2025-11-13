@@ -68,23 +68,21 @@ async def track_event(
     await rate_limiter.check("analytics:track_event", str(current_user.id))
 
     try:
-        # Convert string event type to enum
-        try:
-            event_type = AnalyticsEvent(event_data.event_type)
-        except ValueError as exc:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid event type: {event_data.event_type}",
-            ) from exc
+        event_type = AnalyticsEvent(event_data.event_type)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid event type: {event_data.event_type}",
+        ) from exc
 
-        # Convert string provider to enum
-        from backend.analytics.enums import AnalyticsProvider
+    from backend.analytics.enums import AnalyticsProvider
 
-        try:
-            provider = AnalyticsProvider(event_data.provider)
-        except ValueError:
-            provider = AnalyticsProvider.BOTH
+    try:
+        provider = AnalyticsProvider(event_data.provider)
+    except ValueError:
+        provider = AnalyticsProvider.BOTH
 
+    try:
         analytics_event = await analytics_service.track_event(
             session=session,
             event_type=event_type,
@@ -102,6 +100,9 @@ async def track_event(
 
         return AnalyticsEventResponse.model_validate(analytics_event)
 
+    except HTTPException:
+        await session.rollback()
+        raise
     except Exception as e:
         await session.rollback()
         raise HTTPException(
