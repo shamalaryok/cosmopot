@@ -31,6 +31,20 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_optional(
+    session: AsyncSession = Depends(get_db_session),
+    current_user_id: int | None = Header(
+        None,
+        alias="X-User-Id",
+        convert_underscores=False,
+        description="Authenticated user identifier",
+    ),
+) -> User | None:
+    if current_user_id is None:
+        return None
+    return await get_current_user(session=session, current_user_id=current_user_id)
+
+
 async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role is not UserRole.ADMIN:
         raise HTTPException(
