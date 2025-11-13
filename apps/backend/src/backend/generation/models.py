@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Index, Integer, String
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import (
@@ -23,14 +24,15 @@ __all__ = ["GenerationTask", "GenerationTaskEvent"]
 class GenerationTask(Base, MetadataAliasMixin, UUIDPrimaryKeyMixin, TimestampMixin):
     """Persistent representation of an image generation request."""
 
-    __tablename__ = "generation_tasks"
+    __tablename__ = "backend_generation_tasks"
     __table_args__ = (
-        Index("ix_generation_tasks_user_id", "user_id"),
-        Index("ix_generation_tasks_status", "status"),
+        Index("ix_backend_generation_tasks_user_id", "user_id"),
+        Index("ix_backend_generation_tasks_status", "status"),
     )
 
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    prompt: Mapped[str] = mapped_column(String(1024), nullable=False)
+    prompt_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    prompt: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     parameters: Mapped[dict[str, Any]] = mapped_column(
         JSONType(), default=dict, nullable=False
     )
@@ -39,15 +41,25 @@ class GenerationTask(Base, MetadataAliasMixin, UUIDPrimaryKeyMixin, TimestampMix
         nullable=False,
         default=GenerationTaskStatus.PENDING,
     )
-    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    subscription_tier: Mapped[str] = mapped_column(String(64), nullable=False)
-    s3_bucket: Mapped[str] = mapped_column(String(128), nullable=False)
-    s3_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    input_url: Mapped[str | None] = mapped_column(String(2048))
-    meta_data: Mapped[dict[str, Any]] = mapped_column(
-        "metadata", JSONType(), default=dict, nullable=False
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result_parameters: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONType(), nullable=True
     )
-    error_message: Mapped[str | None] = mapped_column(String(512))
+    input_asset_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    result_asset_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    priority: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    subscription_tier: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    input_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONType(), default=dict, nullable=True
+    )
+    error_message: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     events: Mapped[list[GenerationTaskEvent]] = relationship(
         back_populates="task",
@@ -66,7 +78,7 @@ class GenerationTaskEvent(UUIDPrimaryKeyMixin, TimestampMixin, JSONDataMixin, Ba
     )
 
     task_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("generation_tasks.id", ondelete="CASCADE"),
+        ForeignKey("backend_generation_tasks.id", ondelete="CASCADE"),
         nullable=False,
     )
     event_type: Mapped[GenerationEventType] = mapped_column(
