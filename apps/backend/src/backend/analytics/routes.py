@@ -28,7 +28,10 @@ from backend.analytics.schemas import (
     AnalyticsMetricsResponse,
 )
 from backend.analytics.service import AnalyticsService
-from backend.api.dependencies.users import get_current_user
+from backend.api.dependencies.users import (
+    get_current_user,
+    get_current_user_optional,
+)
 from backend.auth.dependencies import get_rate_limiter
 from backend.auth.rate_limiter import RateLimiter
 from backend.core.config import Settings, get_settings
@@ -379,12 +382,13 @@ async def calculate_metrics(
     summary="Get analytics configuration",
 )
 async def get_analytics_config(
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_user_optional),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> AnalyticsConfigResponse:
     """Get analytics configuration."""
-    await rate_limiter.check("analytics:config", str(current_user.id))
+    if current_user:
+        await rate_limiter.check("analytics:config", str(current_user.id))
 
     return AnalyticsConfigResponse(
         enabled=settings.analytics.enabled,
