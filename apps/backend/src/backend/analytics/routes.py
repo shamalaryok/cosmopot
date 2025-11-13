@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from collections.abc import Mapping
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +51,49 @@ def get_current_user_optional(request: Request) -> CurrentUser | None:
         if exc.status_code == status.HTTP_401_UNAUTHORIZED:
             return None
         raise
+
+
+def _extract_metric_data(metric: Any) -> dict[str, Any]:
+    """Extract metric data dict, supporting alternate metadata attribute."""
+    raw_data = getattr(metric, "metric_data", None)
+    if isinstance(raw_data, Mapping):
+        return dict(raw_data)
+
+    metadata = getattr(metric, "metadata", None)
+    if isinstance(metadata, Mapping):
+        return dict(metadata)
+
+    return {}
+
+
+def _serialize_metric_datetime(value: Any) -> str:
+    """Serialize datetime-like values to ISO formatted strings."""
+    if isinstance(value, dt.datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=dt.UTC)
+        else:
+            value = value.astimezone(dt.UTC)
+        return value.isoformat()
+
+    if isinstance(value, dt.date):
+        combined = dt.datetime.combine(value, dt.time.min, tzinfo=dt.UTC)
+        return combined.isoformat()
+
+    if isinstance(value, str):
+        return value
+
+    return dt.datetime.now(dt.UTC).isoformat()
+
+
+def _serialize_metric_id(value: Any) -> str:
+    """Ensure aggregated metric identifier is serialized as string."""
+    if isinstance(value, (str, int)):
+        return str(value)
+
+    if isinstance(value, uuid.UUID):
+        return str(value)
+
+    return str(uuid.uuid4())
 
 
 @router.post(
@@ -280,7 +325,26 @@ async def get_aggregated_metrics_endpoint(
             end_date=end_date,
         )
 
-        return [AggregatedMetricsResponse.model_validate(metric) for metric in metrics]
+        result = []
+        for metric in metrics:
+            # Convert model to dict-like structure for validation
+            metric_dict: dict[str, Any] = {
+                "id": _serialize_metric_id(getattr(metric, "id", None)),
+                "metric_date": getattr(metric, "metric_date", None),
+                "metric_type": getattr(metric, "metric_type", None),
+                "period": getattr(metric, "period", None),
+                "value": getattr(metric, "value", None),
+                "metric_data": _extract_metric_data(metric),
+                "created_at": _serialize_metric_datetime(
+                    getattr(metric, "created_at", None)
+                ),
+                "updated_at": _serialize_metric_datetime(
+                    getattr(metric, "updated_at", None)
+                ),
+            }
+            result.append(AggregatedMetricsResponse.model_validate(metric_dict))
+
+        return result
 
     except Exception as e:
         raise HTTPException(
