@@ -195,8 +195,6 @@ async def get_dashboard_metrics(
 
     try:
         # Get recent metrics
-        from backend.analytics.repository import get_aggregated_metrics
-
         # Daily metrics for today
         daily_metrics = await get_aggregated_metrics(
             session=session,
