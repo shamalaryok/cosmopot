@@ -90,7 +90,10 @@ class TestAnalyticsAPI:
         assert response_data["user_properties"] == {"prop": "value"}
 
     @pytest.mark.asyncio()
-    async def test_track_event_invalid_event_type(self, async_client: AsyncClient) -> None:
+    async def test_track_event_invalid_event_type(
+        self,
+        async_client: AsyncClient,
+    ) -> None:
         """Test tracking an event with an invalid type."""
         with (
             patch("backend.analytics.routes.get_current_user") as mock_user,
