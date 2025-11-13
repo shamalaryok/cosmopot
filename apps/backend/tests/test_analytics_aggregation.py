@@ -230,23 +230,33 @@ class TestAnalyticsAggregationService:
         """Test churn rate calculation."""
         mock_session = AsyncMock()
 
-        with patch("sqlalchemy.select") as mock_select:
-            mock_result = MagicMock()
-            mock_result.scalar.side_effect = [100, 80]
-            mock_select.return_value.execute.return_value = mock_result
+        old_users_result = MagicMock()
+        old_users_result.scalar_one.return_value = 100
+        active_users_result = MagicMock()
+        active_users_result.scalar_one.return_value = 80
+        mock_session.execute = AsyncMock(
+            side_effect=[old_users_result, active_users_result]
+        )
 
-            churn_rate = await aggregation_service._calculate_churn_rate(
-                mock_session,
-                dt.date(2024, 1, 31),
-            )
+        churn_rate = await aggregation_service._calculate_churn_rate(
+            mock_session,
+            dt.date(2024, 1, 31),
+        )
 
-            assert churn_rate == 20.0
+        assert churn_rate == 20.0
 
-            mock_result.scalar.side_effect = [0, 0]
-            churn_rate = await aggregation_service._calculate_churn_rate(
-                mock_session,
-                dt.date(2024, 1, 31),
-            )
+        zero_old_users_result = MagicMock()
+        zero_old_users_result.scalar_one.return_value = 0
+        zero_active_users_result = MagicMock()
+        zero_active_users_result.scalar_one.return_value = 0
+        mock_session.execute = AsyncMock(
+            side_effect=[zero_old_users_result, zero_active_users_result]
+        )
+
+        churn_rate = await aggregation_service._calculate_churn_rate(
+            mock_session,
+            dt.date(2024, 1, 31),
+        )
 
         assert churn_rate == 0.0
 
