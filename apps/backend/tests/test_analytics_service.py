@@ -5,20 +5,21 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import SecretStr
 
 from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.service import AnalyticsError, AnalyticsService
-from backend.core.config import Settings
+from backend.core.config import AnalyticsSettings, Settings
 
 
 @pytest.fixture
 def mock_settings() -> Settings:
     """Mock analytics settings."""
     return Settings(
-        analytics=MagicMock(
+        analytics=AnalyticsSettings(
             enabled=True,
-            amplitude_api_key="test_amplitude_key",
-            mixpanel_token="test_mixpanel_token",
+            amplitude_api_key=SecretStr("test_amplitude_key"),
+            mixpanel_token=SecretStr("test_mixpanel_token"),
             batch_size=10,
             flush_interval_seconds=60,
             max_retries=3,
