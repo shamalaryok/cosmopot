@@ -15,9 +15,7 @@ from backend.analytics.dependencies import (
 )
 from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.models import AggregatedMetrics
-from backend.analytics.repository import (
-    get_aggregated_metrics,
-)
+from backend.analytics.repository import get_aggregated_metrics
 from backend.analytics.schemas import (
     AggregatedMetricsResponse,
     AnalyticsConfigResponse,
@@ -28,11 +26,8 @@ from backend.analytics.schemas import (
     AnalyticsMetricsResponse,
 )
 from backend.analytics.service import AnalyticsService
-from backend.auth.dependencies import (
-    CurrentUser,
-    get_current_user as auth_get_current_user,
-    get_rate_limiter,
-)
+from backend.auth.dependencies import CurrentUser, get_rate_limiter
+from backend.auth.dependencies import get_current_user as auth_get_current_user
 from backend.auth.rate_limiter import RateLimiter
 from backend.core.config import Settings, get_settings
 from backend.db.dependencies import get_db_session
