@@ -15,9 +15,7 @@ from backend.analytics.dependencies import (
 )
 from backend.analytics.enums import AnalyticsEvent
 from backend.analytics.models import AggregatedMetrics
-from backend.analytics.repository import (
-    get_aggregated_metrics,
-)
+from backend.analytics.repository import get_aggregated_metrics
 from backend.analytics.schemas import (
     AggregatedMetricsResponse,
     AnalyticsConfigResponse,
