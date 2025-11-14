@@ -191,6 +191,14 @@ class RateLimitSettings(BaseModel):
             "rate_limit__generation_requests_per_minute",
         ),
     )
+    login_failed_attempts: int = Field(
+        default=5,
+        ge=1,
+        validation_alias=AliasChoices(
+            "RATE_LIMIT__LOGIN_FAILED_ATTEMPTS",
+            "rate_limit__login_failed_attempts",
+        ),
+    )
     window_seconds: int = Field(
         default=60,
         ge=1,

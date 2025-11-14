@@ -31,12 +31,28 @@ class RateLimiter:
         self._window_seconds = window_seconds
         self._prefix = prefix
 
-    async def check(self, scope: str, identifier: str) -> None:
+    async def check(
+        self,
+        scope: str,
+        identifier: str,
+        *,
+        limit: int | None = None,
+        increment: bool = True,
+    ) -> None:
         key = f"{self._prefix}:{scope}:{identifier}"
-        count = await self._redis.incr(key)
-        if count == 1:
-            await self._redis.expire(key, self._window_seconds)
-        if count > self._limit:
+        active_limit = limit if limit is not None else self._limit
+
+        if increment:
+            count = await self._redis.incr(key)
+            if count == 1:
+                await self._redis.expire(key, self._window_seconds)
+            exceeded = count > active_limit
+        else:
+            raw_count = await self._redis.get(key)
+            count = int(raw_count) if raw_count is not None else 0
+            exceeded = count >= active_limit
+
+        if exceeded:
             ttl = await self._redis.ttl(key)
             retry_after = int(ttl) if ttl and ttl > 0 else self._window_seconds
             raise RateLimitExceeded(retry_after)
