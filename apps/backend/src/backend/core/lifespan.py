@@ -31,6 +31,11 @@ def create_lifespan(settings: Settings) -> Lifespan[FastAPI]:
             limit=settings.rate_limit.global_requests_per_minute,
             window_seconds=settings.rate_limit.window_seconds,
         )
+        app.state.login_rate_limiter = RateLimiter(
+            redis,
+            limit=settings.rate_limit.login_failed_attempts,
+            window_seconds=settings.rate_limit.window_seconds,
+        )
 
         bot_runtime: BotRuntime | None = None
         if settings.telegram_bot_token is not None:
@@ -58,6 +63,7 @@ def create_lifespan(settings: Settings) -> Lifespan[FastAPI]:
                     app.state.bot_runtime = None
 
             app.state.rate_limiter = None
+            app.state.login_rate_limiter = None
             app.state.task_broadcaster = None
             await close_redis()
             await dispose_engine()

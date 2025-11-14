@@ -57,6 +57,16 @@ def get_rate_limiter(request: Request) -> RateLimiter:
     return limiter_obj
 
 
+def get_login_rate_limiter(request: Request) -> RateLimiter:
+    limiter_obj = getattr(request.app.state, "login_rate_limiter", None)
+    if not isinstance(limiter_obj, RateLimiter):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login rate limiter is not configured",
+        )
+    return limiter_obj
+
+
 def get_current_user(request: Request) -> CurrentUser:
     current_user_obj = getattr(request.state, "current_user", None)
     if not isinstance(current_user_obj, CurrentUser):

@@ -15,6 +15,7 @@ from backend.auth.dependencies import (
     CurrentUser,
     get_auth_service,
     get_current_user,
+    get_login_rate_limiter,
     get_rate_limiter,
     get_token_service,
 )
@@ -29,7 +30,7 @@ from backend.auth.exceptions import (
     VerificationTokenInvalidError,
 )
 from backend.auth.models import User
-from backend.auth.rate_limiter import RateLimiter
+from backend.auth.rate_limiter import RateLimitExceeded, RateLimiter
 from backend.auth.schemas import (
     LoginRequest,
     LogoutRequest,
@@ -263,14 +264,34 @@ async def login(
     analytics_service: AnalyticsService = Depends(get_analytics_service),
     session: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
-    rate_limiter: RateLimiter = Depends(get_rate_limiter),
+    login_rate_limiter: RateLimiter = Depends(get_login_rate_limiter),
 ) -> TokenResponse:
-    await rate_limiter.check("auth:login", payload.email.lower())
     user_agent = request.headers.get("User-Agent")
     ip_address = request.client.host if request.client else None
 
     # Track login attempt
     analytics_tracker = AnalyticsTracker(analytics_service, session)
+
+    failed_scope = "auth:login:failed"
+    identifier = payload.email.lower()
+    max_failed_attempts = settings.rate_limit.login_failed_attempts
+
+    try:
+        await login_rate_limiter.check(
+            failed_scope,
+            identifier,
+            limit=max_failed_attempts,
+            increment=False,
+        )
+    except RateLimitExceeded as exc:
+        await analytics_tracker.track_login(
+            user_id="",
+            login_method="email",
+            user_agent=user_agent,
+            ip_address=ip_address,
+            error=exc.detail,
+        )
+        raise
 
     try:
         result = await auth_service.login(
@@ -289,8 +310,27 @@ async def login(
             ip_address=ip_address,
         )
 
+        # Reset failed login attempts on successful login
+        await login_rate_limiter.reset(failed_scope, identifier)
+
     except Exception as exc:
-        # Track failed login
+        try:
+            await login_rate_limiter.check(
+                failed_scope,
+                identifier,
+                limit=max_failed_attempts,
+                increment=True,
+            )
+        except RateLimitExceeded as limit_exc:
+            await analytics_tracker.track_login(
+                user_id="",
+                login_method="email",
+                user_agent=user_agent,
+                ip_address=ip_address,
+                error=limit_exc.detail,
+            )
+            raise limit_exc
+
         await analytics_tracker.track_login(
             user_id="",
             login_method="email",
