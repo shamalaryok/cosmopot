@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping
 from typing import Any, cast
-import uuid
 
-from amplitude import Amplitude, BaseEvent, EventOptions, Identify  # type: ignore[import-untyped]
 import mixpanel  # type: ignore[import-untyped]
-from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
+from amplitude import Amplitude, BaseEvent, EventOptions, Identify  # type: ignore[import-untyped]
+from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from backend.analytics.enums import AnalyticsEvent, AnalyticsProvider
@@ -265,7 +265,9 @@ class AnalyticsService:
             raise ProviderConfigurationError("Mixpanel client not initialized")
 
         try:
-            properties_payload = properties if properties is not None else user_properties
+            properties_payload = (
+                properties if properties is not None else user_properties
+            )
 
             if event_type is None or event_properties is None:
                 if not properties_payload or not user_id:
