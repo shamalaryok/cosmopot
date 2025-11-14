@@ -27,9 +27,12 @@ class EventMetrics(TypedDict):
 
 
 def _coerce_user_id(user_id: str | None) -> uuid.UUID | None:
-    if user_id is None:
+    if not user_id:
         return None
-    return uuid.UUID(user_id)
+    try:
+        return uuid.UUID(user_id)
+    except ValueError:
+        return None
 
 
 def _date_bounds(
