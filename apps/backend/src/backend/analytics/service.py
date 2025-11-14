@@ -369,32 +369,60 @@ class AnalyticsService:
                 user_properties: UserProperties = dict(event.user_properties or {})
                 event_properties: EventPayload = dict(event.event_data)
 
+                raw_provider = getattr(event, "provider", None)
+                if isinstance(raw_provider, AnalyticsProvider):
+                    provider = raw_provider
+                elif isinstance(raw_provider, str):
+                    try:
+                        provider = AnalyticsProvider(raw_provider)
+                    except ValueError:
+                        logger.warning(
+                            "Unknown analytics provider on event, defaulting to BOTH",
+                            event_id=str(event.id),
+                            provider=str(raw_provider),
+                        )
+                        provider = AnalyticsProvider.BOTH
+                else:
+                    provider = AnalyticsProvider.BOTH
+
                 # Send to specified providers
                 responses: ProviderResponseList = []
-                if event.provider in [
+                if provider in [
                     AnalyticsProvider.AMPLITUDE,
                     AnalyticsProvider.BOTH,
                 ]:
-                    if self._amplitude_client:
+                    try:
                         response = await self._send_to_amplitude(
                             user_id=user_id_str,
                             event_type=event.event_type.value,
                             event_properties=event_properties,
-                            user_properties=user_properties,
+                            user_properties=user_properties or None,
                         )
+                    except ProviderConfigurationError:
+                        logger.info(
+                            "Amplitude provider not configured, skipping event",
+                            event_id=str(event.id),
+                        )
+                    else:
                         responses.append(("amplitude", response))
 
-                if event.provider in [
+                if provider in [
                     AnalyticsProvider.MIXPANEL,
                     AnalyticsProvider.BOTH,
                 ]:
-                    if self._mixpanel_client:
+                    try:
                         response = await self._send_to_mixpanel(
                             user_id=user_id_str,
                             event_type=event.event_type.value,
                             event_properties=event_properties,
-                            user_properties=user_properties,
+                            user_properties=user_properties or None,
                         )
+                    except ProviderConfigurationError:
+                        logger.info(
+                            "Mixpanel provider not configured, skipping event",
+                            event_id=str(event.id),
+                        )
+                    else:
                         responses.append(("mixpanel", response))
 
                 # Mark as processed
