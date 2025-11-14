@@ -180,16 +180,43 @@ class AnalyticsService:
     )
     async def _send_to_amplitude(
         self,
-        user_id: str | None,
-        event_type: str,
-        event_properties: EventPayload,
+        user_id: str | None = None,
+        event_type: str | None = None,
+        event_properties: EventPayload | None = None,
         user_properties: UserProperties | None = None,
+        identify_object: Identify | None = None,
     ) -> ProviderResponse:
-        """Send event to Amplitude with retry logic."""
+        """Send event or update user properties in Amplitude with retry logic."""
         if not self._amplitude_client:
             raise ProviderConfigurationError("Amplitude client not initialized")
 
         try:
+            if identify_object is not None:
+                if not user_id:
+                    raise ValueError(
+                        "user_id is required for Amplitude user property updates"
+                    )
+
+                self._amplitude_client.identify(
+                    identify_object,
+                    EventOptions(user_id=user_id),
+                )
+
+                if self.settings.analytics.sandbox_mode:
+                    logger.info(
+                        "Amplitude user properties updated (sandbox mode)",
+                        user_id=user_id,
+                        properties=list((user_properties or {}).keys()),
+                    )
+                    return {"status": "success", "sandbox": True}
+
+                return {"status": "success"}
+
+            if event_type is None or event_properties is None:
+                raise ValueError(
+                    "event_type and event_properties are required for event tracking"
+                )
+
             event = BaseEvent(
                 event_type=event_type,
                 user_id=user_id,
@@ -214,7 +241,7 @@ class AnalyticsService:
 
         except Exception as e:
             logger.error(
-                "Failed to send event to Amplitude",
+                "Failed to send to Amplitude",
                 event_type=event_type,
                 user_id=user_id,
                 error=str(e),
@@ -227,16 +254,38 @@ class AnalyticsService:
     )
     async def _send_to_mixpanel(
         self,
-        user_id: str | None,
-        event_type: str,
-        event_properties: EventPayload,
+        user_id: str | None = None,
+        event_type: str | None = None,
+        event_properties: EventPayload | None = None,
         user_properties: UserProperties | None = None,
+        properties: UserProperties | None = None,
     ) -> ProviderResponse:
-        """Send event to Mixpanel with retry logic."""
+        """Send event or update user properties in Mixpanel with retry logic."""
         if not self._mixpanel_client:
             raise ProviderConfigurationError("Mixpanel client not initialized")
 
         try:
+            properties_payload = properties if properties is not None else user_properties
+
+            if event_type is None or event_properties is None:
+                if not properties_payload or not user_id:
+                    raise ValueError(
+                        "properties and user_id are required for user property updates"
+                    )
+
+                if self.settings.analytics.sandbox_mode:
+                    logger.info(
+                        "Mixpanel user properties updated (sandbox mode)",
+                        user_id=user_id,
+                    )
+                    return {"status": "success", "sandbox": True}
+
+                self._mixpanel_client.people_set(
+                    distinct_id=user_id,
+                    properties=properties_payload,
+                )
+                return {"status": "success"}
+
             if self.settings.analytics.sandbox_mode:
                 logger.info(
                     "Mixpanel event (sandbox mode)",
@@ -254,17 +303,17 @@ class AnalyticsService:
             )
 
             # Set user properties if provided
-            if user_properties and user_id:
+            if properties_payload and user_id:
                 self._mixpanel_client.people_set(
                     distinct_id=user_id,
-                    properties=user_properties,
+                    properties=properties_payload,
                 )
 
             return {"status": "success"}
 
         except Exception as e:
             logger.error(
-                "Failed to send event to Mixpanel",
+                "Failed to send to Mixpanel",
                 event_type=event_type,
                 user_id=user_id,
                 error=str(e),
@@ -493,15 +542,16 @@ class AnalyticsService:
                     for key, value in sanitized_properties.items():
                         identify.set(key, value)
 
-                    self._amplitude_client.identify(
-                        identify,
-                        EventOptions(user_id=user_id),
+                    await self._send_to_amplitude(
+                        user_id=user_id,
+                        identify_object=identify,
+                        user_properties=sanitized_properties,
                     )
 
             if provider in [AnalyticsProvider.MIXPANEL, AnalyticsProvider.BOTH]:
                 if self._mixpanel_client:
-                    self._mixpanel_client.people_set(
-                        distinct_id=user_id,
+                    await self._send_to_mixpanel(
+                        user_id=user_id,
                         properties=sanitized_properties,
                     )
 
