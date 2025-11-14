@@ -117,6 +117,24 @@ def _content_type_extension(upload: UploadFile) -> tuple[str, str]:
     return content_type, _ALLOWS[content_type]
 
 
+def _task_to_dict(task: GenerationTask) -> dict[str, Any]:
+    """Build a mapping for feeding GenerationTask instances into Pydantic."""
+    return {
+        "id": task.id,
+        "user_id": task.user_id,
+        "prompt": task.prompt,
+        "parameters": task.parameters,
+        "status": task.status,
+        "priority": task.priority,
+        "subscription_tier": task.subscription_tier,
+        "input_url": task.input_url,
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+        "metadata": dict(task.metadata_dict),
+        "error_message": task.error_message,
+    }
+
+
 async def _broadcast_task_update(request: Request, task: GenerationTask) -> None:
     broadcaster = cast(
         TaskStatusBroadcaster | None,
@@ -317,7 +335,7 @@ async def submit_generation_task(
         priority=priority,
         tier=tier_label,
     )
-    return GenerationTaskEnvelope.model_validate(task)
+    return GenerationTaskEnvelope.model_validate(_task_to_dict(task))
 
 
 @router.get(
@@ -337,7 +355,10 @@ async def list_generation_tasks(
         session, current_user.id, offset=offset, limit=page_size
     )
     has_next = offset + len(tasks) < total
-    items = [GenerationTaskStatusResponse.model_validate(task) for task in tasks]
+    items = [
+        GenerationTaskStatusResponse.model_validate(_task_to_dict(task))
+        for task in tasks
+    ]
     pagination = PaginationMeta(
         page=page,
         page_size=page_size,
@@ -363,4 +384,4 @@ async def get_generation_status(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
         )
-    return GenerationTaskStatusResponse.model_validate(task)
+    return GenerationTaskStatusResponse.model_validate(_task_to_dict(task))
