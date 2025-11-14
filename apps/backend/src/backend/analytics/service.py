@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import mixpanel  # type: ignore[import-untyped]
 import structlog
-from amplitude import Amplitude, BaseEvent, Identify  # type: ignore[import-untyped]
+from amplitude import Amplitude, BaseEvent, EventOptions, Identify  # type: ignore[import-untyped]
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -494,8 +494,8 @@ class AnalyticsService:
                         identify.set(key, value)
 
                     self._amplitude_client.identify(
-                        identify=identify,
-                        user_id=user_id,
+                        identify,
+                        EventOptions(user_id=user_id),
                     )
 
             if provider in [AnalyticsProvider.MIXPANEL, AnalyticsProvider.BOTH]:
