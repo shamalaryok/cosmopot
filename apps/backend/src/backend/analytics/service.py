@@ -24,6 +24,52 @@ from backend.core.config import Settings
 
 logger = structlog.get_logger(__name__)
 
+PII_FIELD_NAMES: frozenset[str] = frozenset(
+    {
+        "address",
+        "address1",
+        "address2",
+        "address_line1",
+        "address_line2",
+        "card_number",
+        "cardnumber",
+        "city",
+        "credit_card",
+        "credit_card_number",
+        "creditcard",
+        "creditcardnumber",
+        "date_of_birth",
+        "dateofbirth",
+        "dob",
+        "email",
+        "first_name",
+        "firstname",
+        "full_name",
+        "fullname",
+        "last_name",
+        "lastname",
+        "name",
+        "passport",
+        "passport_number",
+        "passportnumber",
+        "phone",
+        "phone_number",
+        "phonenumber",
+        "postal_code",
+        "postalcode",
+        "social_security_number",
+        "socialsecuritynumber",
+        "ssn",
+        "state",
+        "street",
+        "street_address",
+        "streetaddress",
+        "zip",
+        "zip_code",
+        "zipcode",
+    }
+)
+
 EventPayload = dict[str, Any]
 UserProperties = dict[str, Any]
 ProviderResponse = dict[str, Any]
@@ -80,24 +126,30 @@ class AnalyticsService:
         if not self._amplitude_client and not self._mixpanel_client:
             logger.warning("No analytics providers configured")
 
+    def _filter_pii_fields(
+        self,
+        data: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Return a copy of data without PII fields when tracking is disabled."""
+        if not data:
+            return {}
+
+        if self.settings.analytics.enable_pii_tracking:
+            return dict(data)
+
+        filtered: dict[str, Any] = {}
+        for key, value in data.items():
+            if isinstance(key, str) and key.lower() in PII_FIELD_NAMES:
+                continue
+            filtered[key] = value
+        return filtered
+
     def _validate_event_data(
         self,
         event_type: AnalyticsEvent,
         event_data: EventPayload,
     ) -> None:
         """Validate event data against PII policies."""
-        if not self.settings.analytics.enable_pii_tracking:
-            # Remove potential PII fields
-            pii_fields = [
-                "email",
-                "name",
-                "full_name",
-                "first_name",
-                "last_name",
-                "phone",
-            ]
-            for field in pii_fields:
-                event_data.pop(field, None)
 
         # Validate event type specific requirements
         required_fields = {
@@ -120,22 +172,7 @@ class AnalyticsService:
         if not user_properties or not self.settings.analytics.enable_user_properties:
             return {}
 
-        if not self.settings.analytics.enable_pii_tracking:
-            # Remove PII fields
-            pii_fields = [
-                "email",
-                "name",
-                "full_name",
-                "first_name",
-                "last_name",
-                "phone",
-            ]
-            sanitized = user_properties.copy()
-            for field in pii_fields:
-                sanitized.pop(field, None)
-            return sanitized
-
-        return user_properties
+        return self._filter_pii_fields(user_properties)
 
     @retry(
         stop=stop_after_attempt(3),
@@ -247,6 +284,10 @@ class AnalyticsService:
         user_agent: str | None = None,
     ) -> AnalyticsEventRecord:
         """Track an analytics event with batching support."""
+        sanitized_event_data = self._filter_pii_fields(event_data)
+        sanitized_user_properties = self._sanitize_user_properties(user_properties)
+        user_properties_payload = sanitized_user_properties or None
+
         if not self.settings.analytics.enabled:
             logger.debug(
                 "Analytics disabled, skipping event",
@@ -264,8 +305,8 @@ class AnalyticsService:
                 user_id=user_uuid,
                 event_type=event_type,
                 provider=provider,
-                event_data=event_data,
-                user_properties=user_properties,
+                event_data=sanitized_event_data,
+                user_properties=user_properties_payload,
                 session_id=session_id,
                 ip_address=ip_address,
                 user_agent=user_agent,
@@ -274,8 +315,7 @@ class AnalyticsService:
 
         try:
             # Validate event data
-            self._validate_event_data(event_type, event_data.copy())
-            sanitized_user_properties = self._sanitize_user_properties(user_properties)
+            self._validate_event_data(event_type, sanitized_event_data.copy())
 
             # Store event for batch processing
             analytics_event = await create_analytics_event(
@@ -283,8 +323,8 @@ class AnalyticsService:
                 user_id=user_id,
                 event_type=event_type,
                 provider=provider,
-                event_data=event_data,
-                user_properties=sanitized_user_properties,
+                event_data=sanitized_event_data,
+                user_properties=user_properties_payload,
                 session_id=session_id,
                 ip_address=ip_address,
                 user_agent=user_agent,
