@@ -30,7 +30,7 @@ from backend.auth.exceptions import (
     VerificationTokenInvalidError,
 )
 from backend.auth.models import User
-from backend.auth.rate_limiter import RateLimitExceeded, RateLimiter
+from backend.auth.rate_limiter import RateLimiter, RateLimitExceeded
 from backend.auth.schemas import (
     LoginRequest,
     LogoutRequest,
