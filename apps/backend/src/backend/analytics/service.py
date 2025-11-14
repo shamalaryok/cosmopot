@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Mapping
 from typing import Any, cast
+import uuid
 
-import mixpanel  # type: ignore[import-untyped]
-import structlog
 from amplitude import Amplitude, BaseEvent, EventOptions, Identify  # type: ignore[import-untyped]
+import mixpanel  # type: ignore[import-untyped]
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from backend.analytics.enums import AnalyticsEvent, AnalyticsProvider
