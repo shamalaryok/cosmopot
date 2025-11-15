@@ -1,0 +1,41 @@
+[1mdiff --git a/src/user_service/repository.py b/src/user_service/repository.py[m
+[1mindex de80a31..7e506ac 100644[m
+[1m--- a/src/user_service/repository.py[m
+[1m+++ b/src/user_service/repository.py[m
+[36m@@ -459,9 +459,8 @@[m [mdef _is_sqlite_session(session: AsyncSession) -> bool:[m
+ [m
+ def _is_sqlite_database_locked_error(error: OperationalError) -> bool:[m
+     message = str(getattr(error, "orig", error)).lower()[m
+[31m-    return ([m
+[31m-        _SQLITE_LOCK_ERROR_SUBSTRING in message[m
+[31m-        and isinstance(getattr(error, "orig", None), sqlite3.OperationalError)[m
+[32m+[m[32m    return _SQLITE_LOCK_ERROR_SUBSTRING in message and isinstance([m
+[32m+[m[32m        getattr(error, "orig", None), sqlite3.OperationalError[m
+     )[m
+ [m
+ [m
+[36m@@ -477,10 +476,9 @@[m [masync def _run_with_sqlite_retry([m
+         try:[m
+             return await operation()[m
+         except OperationalError as exc:[m
+[31m-            if ([m
+[31m-                attempt < len(_SQLITE_LOCK_RETRY_DELAYS)[m
+[31m-                and _is_sqlite_database_locked_error(exc)[m
+[31m-            ):[m
+[32m+[m[32m            if attempt < len([m
+[32m+[m[32m                _SQLITE_LOCK_RETRY_DELAYS[m
+[32m+[m[32m            ) and _is_sqlite_database_locked_error(exc):[m
+                 await asyncio.sleep(_SQLITE_LOCK_RETRY_DELAYS[attempt])[m
+                 attempt += 1[m
+                 continue[m
+[36m@@ -669,9 +667,7 @@[m [masync def update_prompt([m
+         else None[m
+     )[m
+     new_parameters = ([m
+[31m-        _prompt_dict(updates["parameters"])[m
+[31m-        if "parameters" in updates[m
+[31m-        else None[m
+[32m+[m[32m        _prompt_dict(updates["parameters"]) if "parameters" in updates else None[m
+     )[m
+ [m
+     schema_after_update = new_schema or dict(prompt.parameters_schema or {})[m

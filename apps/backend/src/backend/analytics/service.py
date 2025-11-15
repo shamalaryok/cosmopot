@@ -1,0 +1,579 @@
+"""Analytics service for tracking events to Amplitude/Mixpanel."""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Mapping
+from typing import Any, cast
+
+import mixpanel  # type: ignore[import-untyped]
+import structlog
+from amplitude import (  # type: ignore[import-untyped]
+    Amplitude,
+    BaseEvent,
+    EventOptions,
+    Identify,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+from backend.analytics.enums import AnalyticsEvent, AnalyticsProvider
+from backend.analytics.models import AnalyticsEventRecord
+from backend.analytics.repository import (
+    create_analytics_event,
+    get_pending_events,
+    mark_event_failed,
+    mark_event_processed,
+)
+from backend.core.config import Settings
+
+logger = structlog.get_logger(__name__)
+
+PII_FIELD_NAMES: frozenset[str] = frozenset(
+    {
+        "address",
+        "address1",
+        "address2",
+        "address_line1",
+        "address_line2",
+        "card_number",
+        "cardnumber",
+        "city",
+        "credit_card",
+        "credit_card_number",
+        "creditcard",
+        "creditcardnumber",
+        "date_of_birth",
+        "dateofbirth",
+        "dob",
+        "email",
+        "first_name",
+        "firstname",
+        "full_name",
+        "fullname",
+        "last_name",
+        "lastname",
+        "name",
+        "passport",
+        "passport_number",
+        "passportnumber",
+        "phone",
+        "phone_number",
+        "phonenumber",
+        "postal_code",
+        "postalcode",
+        "social_security_number",
+        "socialsecuritynumber",
+        "ssn",
+        "state",
+        "street",
+        "street_address",
+        "streetaddress",
+        "zip",
+        "zip_code",
+        "zipcode",
+    }
+)
+
+EventPayload = dict[str, Any]
+UserProperties = dict[str, Any]
+ProviderResponse = dict[str, Any]
+ProviderResponseList = list[tuple[str, ProviderResponse]]
+
+
+class AnalyticsError(Exception):
+    """Base analytics service error."""
+
+
+class ProviderConfigurationError(AnalyticsError):
+    """Analytics provider not properly configured."""
+
+
+class EventValidationError(AnalyticsError):
+    """Event data validation failed."""
+
+
+class AnalyticsService:
+    """Service for tracking analytics events with batching and retry logic."""
+
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self._amplitude_client: Amplitude | None = None
+        self._mixpanel_client: mixpanel.Mixpanel | None = None
+        self._initialize_clients()
+
+    def _initialize_clients(self) -> None:
+        """Initialize analytics provider clients."""
+        if not self.settings.analytics.enabled:
+            logger.info("Analytics service disabled")
+            return
+
+        # Initialize Amplitude
+        if self.settings.analytics.amplitude_api_key:
+            try:
+                self._amplitude_client = Amplitude(
+                    api_key=self.settings.analytics.amplitude_api_key.get_secret_value()
+                )
+                logger.info("Amplitude client initialized")
+            except Exception as e:
+                logger.error("Failed to initialize Amplitude client", error=str(e))
+
+        # Initialize Mixpanel
+        if self.settings.analytics.mixpanel_token:
+            try:
+                self._mixpanel_client = mixpanel.Mixpanel(
+                    token=self.settings.analytics.mixpanel_token.get_secret_value()
+                )
+                logger.info("Mixpanel client initialized")
+            except Exception as e:
+                logger.error("Failed to initialize Mixpanel client", error=str(e))
+
+        if not self._amplitude_client and not self._mixpanel_client:
+            logger.warning("No analytics providers configured")
+
+    def _filter_pii_fields(
+        self,
+        data: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Return a copy of data without PII fields when tracking is disabled."""
+        if not data:
+            return {}
+
+        if self.settings.analytics.enable_pii_tracking:
+            return dict(data)
+
+        filtered: dict[str, Any] = {}
+        for key, value in data.items():
+            if isinstance(key, str) and key.lower() in PII_FIELD_NAMES:
+                continue
+            filtered[key] = value
+        return filtered
+
+    def _validate_event_data(
+        self,
+        event_type: AnalyticsEvent,
+        event_data: EventPayload,
+    ) -> None:
+        """Validate event data against PII policies."""
+
+        # Validate event type specific requirements
+        required_fields = {
+            AnalyticsEvent.SIGNUP_STARTED: ["signup_method"],
+            AnalyticsEvent.GENERATION_STARTED: ["generation_type"],
+            AnalyticsEvent.PAYMENT_INITIATED: ["amount", "currency"],
+            AnalyticsEvent.REFERRAL_SENT: ["referral_code"],
+        }
+
+        if event_type in required_fields:
+            for field in required_fields[event_type]:
+                if field not in event_data:
+                    raise EventValidationError(f"Missing required field: {field}")
+
+    def _sanitize_user_properties(
+        self,
+        user_properties: UserProperties | None,
+    ) -> UserProperties:
+        """Sanitize user properties according to PII policies."""
+        if not user_properties or not self.settings.analytics.enable_user_properties:
+            return {}
+
+        return self._filter_pii_fields(user_properties)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
+    async def _send_to_amplitude(
+        self,
+        user_id: str | None = None,
+        event_type: str | None = None,
+        event_properties: EventPayload | None = None,
+        user_properties: UserProperties | None = None,
+        identify_object: Identify | None = None,
+    ) -> ProviderResponse:
+        """Send event or update user properties in Amplitude with retry logic."""
+        if not self._amplitude_client:
+            raise ProviderConfigurationError("Amplitude client not initialized")
+
+        try:
+            if identify_object is not None:
+                if not user_id:
+                    raise ValueError(
+                        "user_id is required for Amplitude user property updates"
+                    )
+
+                self._amplitude_client.identify(
+                    identify_object,
+                    EventOptions(user_id=user_id),
+                )
+
+                if self.settings.analytics.sandbox_mode:
+                    logger.info(
+                        "Amplitude user properties updated (sandbox mode)",
+                        user_id=user_id,
+                        properties=list((user_properties or {}).keys()),
+                    )
+                    return {"status": "success", "sandbox": True}
+
+                return {"status": "success"}
+
+            if event_type is None or event_properties is None:
+                raise ValueError(
+                    "event_type and event_properties are required for event tracking"
+                )
+
+            event = BaseEvent(
+                event_type=event_type,
+                user_id=user_id,
+                event_properties=event_properties,
+                user_properties=user_properties,
+            )
+
+            response = self._amplitude_client.track(event)
+
+            if self.settings.analytics.sandbox_mode:
+                logger.info(
+                    "Amplitude event (sandbox mode)",
+                    event_type=event_type,
+                    user_id=user_id,
+                    properties=event_properties,
+                )
+                return {"status": "success", "sandbox": True}
+
+            if isinstance(response, dict):
+                return cast(ProviderResponse, response)
+            return {"status": "success"}
+
+        except Exception as e:
+            logger.error(
+                "Failed to send to Amplitude",
+                event_type=event_type,
+                user_id=user_id,
+                error=str(e),
+            )
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
+    async def _send_to_mixpanel(
+        self,
+        user_id: str | None = None,
+        event_type: str | None = None,
+        event_properties: EventPayload | None = None,
+        user_properties: UserProperties | None = None,
+        properties: UserProperties | None = None,
+    ) -> ProviderResponse:
+        """Send event or update user properties in Mixpanel with retry logic."""
+        if not self._mixpanel_client:
+            raise ProviderConfigurationError("Mixpanel client not initialized")
+
+        try:
+            properties_payload = (
+                properties if properties is not None else user_properties
+            )
+
+            if event_type is None or event_properties is None:
+                if not properties_payload or not user_id:
+                    raise ValueError(
+                        "properties and user_id are required for user property updates"
+                    )
+
+                if self.settings.analytics.sandbox_mode:
+                    logger.info(
+                        "Mixpanel user properties updated (sandbox mode)",
+                        user_id=user_id,
+                    )
+                    return {"status": "success", "sandbox": True}
+
+                self._mixpanel_client.people_set(
+                    distinct_id=user_id,
+                    properties=properties_payload,
+                )
+                return {"status": "success"}
+
+            if self.settings.analytics.sandbox_mode:
+                logger.info(
+                    "Mixpanel event (sandbox mode)",
+                    event_type=event_type,
+                    user_id=user_id,
+                    properties=event_properties,
+                )
+                return {"status": "success", "sandbox": True}
+
+            # Track event
+            self._mixpanel_client.track(
+                distinct_id=user_id or "anonymous",
+                event_name=event_type,
+                properties=event_properties,
+            )
+
+            # Set user properties if provided
+            if properties_payload and user_id:
+                self._mixpanel_client.people_set(
+                    distinct_id=user_id,
+                    properties=properties_payload,
+                )
+
+            return {"status": "success"}
+
+        except Exception as e:
+            logger.error(
+                "Failed to send to Mixpanel",
+                event_type=event_type,
+                user_id=user_id,
+                error=str(e),
+            )
+            raise
+
+    async def track_event(
+        self,
+        session: AsyncSession,
+        event_type: AnalyticsEvent,
+        event_data: EventPayload,
+        user_id: str | None = None,
+        user_properties: UserProperties | None = None,
+        provider: AnalyticsProvider = AnalyticsProvider.BOTH,
+        session_id: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> AnalyticsEventRecord:
+        """Track an analytics event with batching support."""
+        sanitized_event_data = self._filter_pii_fields(event_data)
+        sanitized_user_properties = self._sanitize_user_properties(user_properties)
+        user_properties_payload = sanitized_user_properties or None
+
+        if not self.settings.analytics.enabled:
+            logger.debug(
+                "Analytics disabled, skipping event",
+                event_type=event_type.value,
+            )
+            # Return a dummy event model for consistency
+            user_uuid = None
+            if user_id:
+                try:
+                    user_uuid = uuid.UUID(user_id)
+                except ValueError:
+                    user_uuid = None
+
+            return AnalyticsEventRecord(
+                user_id=user_uuid,
+                event_type=event_type,
+                provider=provider,
+                event_data=sanitized_event_data,
+                user_properties=user_properties_payload,
+                session_id=session_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                is_successful=True,
+            )
+
+        try:
+            # Validate event data
+            self._validate_event_data(event_type, sanitized_event_data.copy())
+
+            # Store event for batch processing
+            analytics_event = await create_analytics_event(
+                session=session,
+                user_id=user_id,
+                event_type=event_type,
+                provider=provider,
+                event_data=sanitized_event_data,
+                user_properties=user_properties_payload,
+                session_id=session_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+
+            logger.info(
+                "Analytics event queued",
+                event_id=str(analytics_event.id),
+                event_type=event_type.value,
+                user_id=user_id,
+                provider=provider.value,
+            )
+
+            return analytics_event
+
+        except Exception as e:
+            logger.error(
+                "Failed to track analytics event",
+                event_type=event_type.value,
+                user_id=user_id,
+                error=str(e),
+            )
+            raise AnalyticsError(f"Failed to track event: {e}") from e
+
+    async def process_pending_events(self, session: AsyncSession) -> dict[str, int]:
+        """Process pending analytics events with batch sending."""
+        if not self.settings.analytics.enabled:
+            return {"processed": 0, "failed": 0}
+
+        pending_events = await get_pending_events(
+            session=session,
+            batch_size=self.settings.analytics.batch_size,
+            max_retries=self.settings.analytics.max_retries,
+        )
+
+        processed_count = 0
+        failed_count = 0
+
+        for event in pending_events:
+            try:
+                user_id_str = str(event.user_id) if event.user_id is not None else None
+                user_properties: UserProperties = dict(event.user_properties or {})
+                event_properties: EventPayload = dict(event.event_data)
+
+                raw_provider = getattr(event, "provider", None)
+                if isinstance(raw_provider, AnalyticsProvider):
+                    provider = raw_provider
+                elif isinstance(raw_provider, str):
+                    try:
+                        provider = AnalyticsProvider(raw_provider)
+                    except ValueError:
+                        logger.warning(
+                            "Unknown analytics provider on event, defaulting to BOTH",
+                            event_id=str(event.id),
+                            provider=str(raw_provider),
+                        )
+                        provider = AnalyticsProvider.BOTH
+                else:
+                    provider = AnalyticsProvider.BOTH
+
+                # Send to specified providers
+                responses: ProviderResponseList = []
+                if provider in [
+                    AnalyticsProvider.AMPLITUDE,
+                    AnalyticsProvider.BOTH,
+                ]:
+                    try:
+                        response = await self._send_to_amplitude(
+                            user_id=user_id_str,
+                            event_type=event.event_type.value,
+                            event_properties=event_properties,
+                            user_properties=user_properties or None,
+                        )
+                    except ProviderConfigurationError:
+                        logger.info(
+                            "Amplitude provider not configured, skipping event",
+                            event_id=str(event.id),
+                        )
+                    else:
+                        responses.append(("amplitude", response))
+
+                if provider in [
+                    AnalyticsProvider.MIXPANEL,
+                    AnalyticsProvider.BOTH,
+                ]:
+                    try:
+                        response = await self._send_to_mixpanel(
+                            user_id=user_id_str,
+                            event_type=event.event_type.value,
+                            event_properties=event_properties,
+                            user_properties=user_properties or None,
+                        )
+                    except ProviderConfigurationError:
+                        logger.info(
+                            "Mixpanel provider not configured, skipping event",
+                            event_id=str(event.id),
+                        )
+                    else:
+                        responses.append(("mixpanel", response))
+
+                # Mark as processed
+                provider_response_payload: Mapping[str, object] = {
+                    "responses": responses
+                }
+                await mark_event_processed(
+                    session=session,
+                    event_id=event.id,
+                    provider_response=dict(provider_response_payload),
+                )
+                processed_count += 1
+
+                logger.debug(
+                    "Analytics event processed",
+                    event_id=str(event.id),
+                    event_type=event.event_type.value,
+                    providers=[r[0] for r in responses],
+                )
+
+            except Exception as e:
+                # Mark as failed
+                await mark_event_failed(
+                    session=session,
+                    event_id=event.id,
+                    error_message=str(e),
+                )
+                failed_count += 1
+
+                logger.error(
+                    "Failed to process analytics event",
+                    event_id=str(event.id),
+                    event_type=event.event_type.value,
+                    error=str(e),
+                    retry_count=event.retry_count,
+                )
+
+        await session.commit()
+
+        logger.info(
+            "Analytics batch processing completed",
+            processed=processed_count,
+            failed=failed_count,
+            total=len(pending_events),
+        )
+
+        return {"processed": processed_count, "failed": failed_count}
+
+    async def update_user_properties(
+        self,
+        user_id: str,
+        properties: UserProperties,
+        provider: AnalyticsProvider = AnalyticsProvider.BOTH,
+    ) -> None:
+        """Update user properties in analytics providers."""
+        if not self.settings.analytics.enabled:
+            return
+
+        sanitized_properties = self._sanitize_user_properties(properties)
+        if not sanitized_properties:
+            logger.debug("No user properties to update after PII filtering")
+            return
+
+        try:
+            if provider in [AnalyticsProvider.AMPLITUDE, AnalyticsProvider.BOTH]:
+                if self._amplitude_client:
+                    identify = Identify()
+                    for key, value in sanitized_properties.items():
+                        identify.set(key, value)
+
+                    await self._send_to_amplitude(
+                        user_id=user_id,
+                        identify_object=identify,
+                        user_properties=sanitized_properties,
+                    )
+
+            if provider in [AnalyticsProvider.MIXPANEL, AnalyticsProvider.BOTH]:
+                if self._mixpanel_client:
+                    await self._send_to_mixpanel(
+                        user_id=user_id,
+                        properties=sanitized_properties,
+                    )
+
+            logger.info(
+                "User properties updated",
+                user_id=user_id,
+                provider=provider.value,
+                properties=list(sanitized_properties.keys()),
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to update user properties",
+                user_id=user_id,
+                provider=provider.value,
+                error=str(e),
+            )
+            raise AnalyticsError(f"Failed to update user properties: {e}") from e

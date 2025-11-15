@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing • DreamFoundry{% endblock %}
+
+{% block content %}
+<header style="margin-bottom:2rem; display:flex; flex-direction:column; gap:0.5rem;">
+  <h1 style="margin:0;">Choose the workflow that fits</h1>
+  <p style="margin:0; color:rgba(226,232,240,0.78);">All tiers include secure storage, live monitoring, and API access. Upgrade instantly—the CTA sends you to the payment confirmation.</p>
+</header>
+
+<section class="card-grid">
+  {% for plan in plans %}
+    <article class="card" aria-labelledby="plan-{{ plan.code }}-title" style="position:relative;">
+      {% if plan.badge %}
+        <span class="plan-badge" style="position:absolute; top:1.2rem; right:1.2rem;">{{ plan.badge }}</span>
+      {% endif %}
+      <h2 id="plan-{{ plan.code }}-title" style="margin:0;">{{ plan.name }}</h2>
+      <p style="margin:0; color:rgba(226,232,240,0.78);">{{ plan.description }}</p>
+      <p style="margin:1rem 0 0; font-size:2rem; font-weight:700;">{{ plan.price }} <span style="font-size:0.9rem; opacity:0.7;">{{ plan.currency }}/mo</span></p>
+      <ul style="margin:0; padding-left:1.1rem; display:grid; gap:0.4rem;">
+        {% for feature in plan.features %}
+          <li>{{ feature }}</li>
+        {% endfor %}
+      </ul>
+      <form method="post" action="{{ url_for('pricing_checkout') }}" data-loading style="margin-top:auto;">
+        <input type="hidden" name="plan_code" value="{{ plan.code }}" />
+        <button type="submit" class="btn-primary">Upgrade to {{ plan.name }}</button>
+      </form>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="card" style="margin-top:2.5rem;">
+  <h2 style="margin-top:0;">Need custom terms?</h2>
+  <p style="margin-bottom:0;">Enterprise procurement, dedicated support, or on-premises deployment are available. Email <a href="mailto:sales@dreamfoundry.io">sales@dreamfoundry.io</a> for a tailored plan.</p>
+</section>
+{% endblock %}

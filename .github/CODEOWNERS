@@ -1,0 +1,41 @@
+# CODEOWNERS file
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @team-leads
+
+# Backend code
+/apps/backend/ @backend-team
+/src/user_service/ @backend-team
+/backend/ @backend-team
+
+# Bot code
+/apps/bot/ @bot-team
+
+# Frontend code
+/frontend/ @frontend-team
+
+# Infrastructure and DevOps
+/.github/ @devops-team
+/docker-compose.yml @devops-team
+**/Dockerfile @devops-team
+/nginx/ @devops-team
+/prometheus/ @devops-team
+/grafana/ @devops-team
+
+# CI/CD workflows (require review from leads)
+/.github/workflows/ @team-leads @devops-team
+
+# Database migrations
+/migrations/ @backend-team @team-leads
+/apps/backend/alembic/ @backend-team @team-leads
+
+# Documentation
+/docs/ @team-leads
+*.md @team-leads
+
+# Configuration files
+pyproject.toml @team-leads
+package.json @frontend-team @team-leads
+.env.example @devops-team
+.gitignore @devops-team

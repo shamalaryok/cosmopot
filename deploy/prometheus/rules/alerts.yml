@@ -1,0 +1,176 @@
+groups:
+  - name: api_alerts
+    rules:
+      # High error rate
+      - alert: APIHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          runbook_url: "https://runbooks.prodstack.local/api-errors"
+
+      # High response time
+      - alert: APIHighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High API response time detected"
+          description: "P95 response time is {{ $value }}s for the last 5 minutes"
+          runbook_url: "https://runbooks.prodstack.local/api-latency"
+
+      # Service down
+      - alert: APIServiceDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Backend API service is down"
+          description: "Backend service has been down for more than 1 minute"
+          runbook_url: "https://runbooks.prodstack.local/service-down"
+
+  - name: business_alerts
+    rules:
+      # Low generation success rate
+      - alert: LowGenerationSuccessRate
+        expr: rate(generation_requests_total{status="success"}[5m]) / rate(generation_requests_total[5m]) < 0.95
+        for: 3m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "Low generation success rate"
+          description: "Generation success rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          runbook_url: "https://runbooks.prodstack.local/generation-failures"
+
+      # High queue depth
+      - alert: HighQueueDepth
+        expr: queue_depth > 500
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High queue depth detected"
+          description: "Queue {{ $labels.queue_name }} has {{ $value }} items"
+          runbook_url: "https://runbooks.prodstack.local/queue-backlog"
+
+      # No generation requests
+      - alert: NoGenerationRequests
+        expr: rate(generation_requests_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "No generation requests detected"
+          description: "No generation requests received in the last 10 minutes"
+          runbook_url: "https://runbooks.prodstack.local/no-activity"
+
+      # Payment failures
+      - alert: HighPaymentFailureRate
+        expr: rate(payment_requests_total{status="failed"}[5m]) / rate(payment_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          runbook_url: "https://runbooks.prodstack.local/payment-failures"
+
+  - name: infrastructure_alerts
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: system_cpu_usage_percent > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% for the last 5 minutes"
+          runbook_url: "https://runbooks.prodstack.local/high-cpu"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: system_memory_usage_bytes{type="used"} / (system_memory_usage_bytes{type="used"} + system_memory_usage_bytes{type="available"}) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% for the last 5 minutes"
+          runbook_url: "https://runbooks.prodstack.local/high-memory"
+
+      # High disk usage
+      - alert: HighDiskUsage
+        expr: disk_usage_bytes{type="used"} / (disk_usage_bytes{type="used"} + disk_usage_bytes{type="available"}) * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.mount_point }}"
+          runbook_url: "https://runbooks.prodstack.local/high-disk"
+
+      # Database connection pool exhaustion
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: database_connections_active / (database_connections_active + database_connections_idle) > 0.9
+        for: 3m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connection pool usage is {{ $value | humanizePercentage }}"
+          runbook_url: "https://runbooks.prodstack.local/db-pool-exhaustion"
+
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: cache_hits_total / (cache_hits_total + cache_misses_total) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} for {{ $labels.cache_type }}"
+          runbook_url: "https://runbooks.prodstack.local/low-cache-hit-rate"
+
+  - name: sla_alerts
+    rules:
+      # SLA violation - availability
+      - alert: SLAViolationAvailability
+        expr: (1 - rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) < 0.995
+        for: 5m
+        labels:
+          severity: critical
+          service: sla
+        annotations:
+          summary: "SLA violation - availability below 99.5%"
+          description: "Service availability is {{ $value | humanizePercentage }}, below 99.5% SLA"
+          runbook_url: "https://runbooks.prodstack.local/sla-availability"
+
+      # SLA violation - error rate
+      - alert: SLAViolationErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          service: sla
+        annotations:
+          summary: "SLA violation - error rate above 1%"
+          description: "Error rate is {{ $value | humanizePercentage }}, above 1% SLA threshold"
+          runbook_url: "https://runbooks.prodstack.local/sla-error-rate"

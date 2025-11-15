@@ -1,0 +1,828 @@
+version: "3.9"
+
+x-common: &common
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+    max_attempts: 3
+    window: 120s
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "3"
+
+x-backend-env: &backend-env
+  ENVIRONMENT: production
+  LOG_LEVEL: INFO
+  SENTRY_ENVIRONMENT: production
+
+x-labels: &labels
+  app.name: prodstack
+  environment: production
+
+secrets:
+  db_password:
+    external: true
+    name: db_password
+  db_user:
+    external: true
+    name: db_user
+  redis_password:
+    external: true
+    name: redis_password
+  rabbitmq_password:
+    external: true
+    name: rabbitmq_password
+  minio_root_password:
+    external: true
+    name: minio_root_password
+  minio_secret_key:
+    external: true
+    name: minio_secret_key
+  encryption_key:
+    external: true
+    name: encryption_key
+  stripe_api_key:
+    external: true
+    name: stripe_api_key
+  stripe_webhook_secret:
+    external: true
+    name: stripe_webhook_secret
+  sentry_dsn:
+    external: true
+    name: sentry_dsn
+  pagerduty_service_key:
+    external: true
+    name: pagerduty_service_key
+  grafana_password:
+    external: true
+    name: grafana_password
+  alertmanager_config:
+    external: true
+    name: alertmanager_config
+
+configs:
+  nginx_conf:
+    file: ./nginx/nginx.prod.conf
+  postgres_init:
+    file: ./postgres/init.sql
+  prometheus_conf:
+    file: ./prometheus/prometheus.prod.yml
+  prometheus_rules:
+    file: ./prometheus/rules/alerts.yml
+  grafana_datasources:
+    file: ./grafana/datasources.yml
+  grafana_dashboards:
+    file: ./grafana/dashboards.yml
+
+services:
+  # ==================== DATABASE ====================
+  postgres:
+    image: postgres:15-alpine
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: postgres
+    environment:
+      POSTGRES_DB: prodstack
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_INITDB_ARGS: "-c max_connections=200 -c shared_buffers=256MB -c effective_cache_size=1GB -c work_mem=4MB"
+    secrets:
+      - db_password
+      - db_user
+    configs:
+      - source: postgres_init
+        target: /docker-entrypoint-initdb.d/init.sql
+        mode: 0755
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - core
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$(cat /run/secrets/db_user) -d prodstack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==================== CACHE ====================
+  redis:
+    image: redis:7-alpine
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: redis
+    command: >
+      redis-server
+      --requirepass $$(cat /run/secrets/redis_password)
+      --save 60 1
+      --loglevel warning
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+    networks:
+      - core
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 5s
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== MESSAGE BROKER ====================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER_FILE: /run/secrets/db_user
+      RABBITMQ_DEFAULT_PASS_FILE: /run/secrets/rabbitmq_password
+      RABBITMQ_DEFAULT_VHOST: /
+      RABBITMQ_DISK_FREE_LIMIT: "{ mem_relative, 1.0 }"
+    secrets:
+      - db_user
+      - rabbitmq_password
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - core
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== OBJECT STORAGE ====================
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-01-18T22-51-49Z
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: minio
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/db_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    command: >
+      server
+      /data
+      --console-address :9001
+    secrets:
+      - db_user
+      - minio_root_password
+      - minio_secret_key
+    volumes:
+      - minio_data:/data
+    networks:
+      - core
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==================== BACKEND API ====================
+  backend:
+    image: ${REGISTRY:-localhost}/backend:${VERSION:-latest}
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: backend
+    environment:
+      <<: *backend-env
+      DATABASE__HOST: postgres
+      DATABASE__PORT: "5432"
+      DATABASE__USER_FILE: /run/secrets/db_user
+      DATABASE__PASSWORD_FILE: /run/secrets/db_password
+      DATABASE__NAME: prodstack
+      REDIS_URL: redis://:__REDIS_PASSWORD__@redis:6379/0
+      CELERY_BROKER_URL: amqp://devstack:__RABBITMQ_PASSWORD__@rabbitmq:5672/
+      CELERY_RESULT_BACKEND: redis://:__REDIS_PASSWORD__@redis:6379/1
+      MINIO_ROOT_USER_FILE: /run/secrets/db_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_REGION: us-east-1
+      ENCRYPTION__KEY_FILE: /run/secrets/encryption_key
+      ENCRYPTION__ENABLED: "true"
+      STRIPE__API_KEY_FILE: /run/secrets/stripe_api_key
+      STRIPE__WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
+      STRIPE__ENABLED: "true"
+      SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+      UVICORN_WORKERS: "4"
+      RATE_LIMIT__GLOBAL_REQUESTS_PER_MINUTE: "1000"
+      RATE_LIMIT__GENERATION_REQUESTS_PER_MINUTE: "100"
+      RATE_LIMIT__WINDOW_SECONDS: "60"
+    secrets:
+      - db_user
+      - db_password
+      - redis_password
+      - rabbitmq_password
+      - minio_root_password
+      - encryption_key
+      - stripe_api_key
+      - stripe_webhook_secret
+      - sentry_dsn
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - minio
+    networks:
+      - core
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 5
+      placement:
+        constraints:
+          - node.labels.workload == backend
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==================== CELERY WORKER ====================
+  worker:
+    image: ${REGISTRY:-localhost}/worker:${VERSION:-latest}
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: worker
+    environment:
+      <<: *backend-env
+      DATABASE__HOST: postgres
+      DATABASE__PORT: "5432"
+      DATABASE__USER_FILE: /run/secrets/db_user
+      DATABASE__PASSWORD_FILE: /run/secrets/db_password
+      DATABASE__NAME: prodstack
+      REDIS_URL: redis://:__REDIS_PASSWORD__@redis:6379/0
+      CELERY_BROKER_URL: amqp://devstack:__RABBITMQ_PASSWORD__@rabbitmq:5672/
+      CELERY_RESULT_BACKEND: redis://:__REDIS_PASSWORD__@redis:6379/1
+      MINIO_ROOT_USER_FILE: /run/secrets/db_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ENDPOINT: http://minio:9000
+      CELERY_WORKER_CONCURRENCY: "8"
+    secrets:
+      - db_user
+      - db_password
+      - redis_password
+      - rabbitmq_password
+      - minio_root_password
+      - sentry_dsn
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - minio
+    networks:
+      - core
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 10
+      placement:
+        constraints:
+          - node.labels.workload == worker
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+      update_config:
+        parallelism: 2
+        delay: 30s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.tasks", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==================== FRONTEND ====================
+  frontend:
+    image: ${REGISTRY:-localhost}/frontend:${VERSION:-latest}
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: frontend
+    networks:
+      - core
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.labels.workload == frontend
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 20s
+        failure_action: rollback
+        order: start-first
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ==================== REVERSE PROXY ====================
+  nginx:
+    image: nginx:1.25-alpine
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: nginx
+    configs:
+      - source: nginx_conf
+        target: /etc/nginx/nginx.conf
+    volumes:
+      - nginx_cache:/var/cache/nginx
+      - nginx_certs:/etc/nginx/certs
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+    networks:
+      - core
+      - monitoring
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ==================== MONITORING - PROMETHEUS ====================
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    configs:
+      - source: prometheus_conf
+        target: /etc/prometheus/prometheus.yml
+      - source: prometheus_rules
+        target: /etc/prometheus/rules/alerts.yml
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ==================== MONITORING - GRAFANA ====================
+  grafana:
+    image: grafana/grafana:10.1.5
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD_FILE: /run/secrets/grafana_password
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "https://${GRAFANA_DOMAIN:-monitoring.local}/grafana"
+    secrets:
+      - grafana_password
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yml
+      - source: grafana_dashboards
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==================== MONITORING - ALERTMANAGER ====================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.external-url=http://alertmanager:9093"
+    configs:
+      - source: alertmanager_config
+        target: /etc/alertmanager/alertmanager.yml
+    volumes:
+      - alertmanager_data:/alertmanager
+    ports:
+      - target: 9093
+        published: 9093
+        protocol: tcp
+        mode: host
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==================== MONITORING - EXPORTERS ====================
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.12.0
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:$(cat /run/secrets/db_password)@postgres:5432/prodstack?sslmode=disable"
+    secrets:
+      - db_password
+    networks:
+      - core
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9187/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.45.0
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: redis_exporter
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    networks:
+      - core
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  node_exporter:
+    image: prom/node-exporter:v1.6.1
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: node_exporter
+    command:
+      - "--path.rootfs=/host"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:0.11.0
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: nginx_exporter
+    command:
+      - "-nginx.scrape-uri=http://nginx:8080/nginx_status"
+    networks:
+      - core
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9113/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ==================== ERROR TRACKING - SENTRY ====================
+  sentry-relay:
+    image: getsentry/relay:latest
+    <<: [*common, *logging]
+    labels:
+      <<: *labels
+      service: sentry-relay
+    environment:
+      SENTRY_RELAY_UPSTREAM_URL: "https://sentry.io"
+      SENTRY_RELAY_PORT: "3000"
+      SENTRY_RELAY_MODE: "managed"
+    volumes:
+      - sentry_relay_data:/data
+    networks:
+      - core
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/relay/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+networks:
+  core:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.overlay.vxlan_id_list: "4096"
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+  monitoring:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.overlay.vxlan_id_list: "4097"
+    ipam:
+      config:
+        - subnet: 10.11.0.0/24
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/postgres"
+  redis_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/redis"
+  rabbitmq_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/rabbitmq"
+  minio_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/minio"
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/prometheus"
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/grafana"
+  alertmanager_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs.local},vers=4,soft,timeo=180,bg,tcp,rw
+      device: ":/exports/alertmanager"
+  nginx_cache:
+    driver: local
+  nginx_certs:
+    driver: local
+  sentry_relay_data:
+    driver: local

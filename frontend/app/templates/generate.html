@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Generate • DreamFoundry{% endblock %}
+
+{% block content %}
+<header style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:2rem;">
+  <h1 style="margin:0;">Submit a generation task</h1>
+  <p style="margin:0; color:rgba(226,232,240,0.78);">Upload a seed image and configure model parameters. Tasks stream updates in real time once queued.</p>
+</header>
+
+<section style="display:grid; gap:2rem; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));">
+  <article class="card" style="gap:1.2rem;">
+    <h2 style="margin:0; font-size:1rem;">Generation details</h2>
+    {% set values = form_values if form_values is defined else {} %}
+    <form method="post" action="{{ url_for('generate_submit') }}" enctype="multipart/form-data" data-loading>
+      <div>
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" name="prompt" rows="4" required>{{ values.prompt if values else '' }}</textarea>
+      </div>
+      <div>
+        <label for="image">Seed image <small>(PNG or JPEG · max {{ (max_upload / (1024 * 1024)) | round(1) }}MB)</small></label>
+        <input id="image" name="image" type="file" accept="image/png,image/jpeg" required />
+      </div>
+      <div style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));">
+        <div>
+          <label for="width">Width</label>
+          <input id="width" name="width" type="number" min="64" max="2048" value="{{ values.width if values else 512 }}" />
+        </div>
+        <div>
+          <label for="height">Height</label>
+          <input id="height" name="height" type="number" min="64" max="2048" value="{{ values.height if values else 512 }}" />
+        </div>
+        <div>
+          <label for="inference_steps">Steps</label>
+          <input id="inference_steps" name="inference_steps" type="number" min="1" max="200" value="{{ values.inference_steps if values else 30 }}" />
+        </div>
+        <div>
+          <label for="guidance_scale">Guidance</label>
+          <input id="guidance_scale" name="guidance_scale" type="number" step="0.5" min="0" max="50" value="{{ values.guidance_scale if values else 7.5 }}" />
+        </div>
+        <div>
+          <label for="seed">Seed <small>(optional)</small></label>
+          <input id="seed" name="seed" type="number" min="0" value="{{ values.seed if values else '' }}" />
+        </div>
+      </div>
+      <div style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+        <div>
+          <label for="model">Model</label>
+          <select id="model" name="model">
+            {% set model_value = values.model if values else 'stable-diffusion-xl' %}
+            <option value="stable-diffusion-xl" {% if model_value == 'stable-diffusion-xl' %}selected{% endif %}>Stable Diffusion XL</option>
+            <option value="dream-shaper" {% if model_value == 'dream-shaper' %}selected{% endif %}>DreamShaper</option>
+            <option value="real-esrgan" {% if model_value == 'real-esrgan' %}selected{% endif %}>Real ESRGAN</option>
+          </select>
+        </div>
+        <div>
+          <label for="scheduler">Scheduler</label>
+          {% set scheduler_value = values.scheduler if values else 'ddim' %}
+          <select id="scheduler" name="scheduler">
+            <option value="ddim" {% if scheduler_value == 'ddim' %}selected{% endif %}>DDIM</option>
+            <option value="euler" {% if scheduler_value == 'euler' %}selected{% endif %}>Euler</option>
+            <option value="dpm++" {% if scheduler_value == 'dpm++' %}selected{% endif %}>DPM++</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary">Queue generation</button>
+    </form>
+  </article>
+
+  <aside class="card" style="gap:1rem;" aria-labelledby="quota-title">
+    <h2 id="quota-title" style="margin:0; font-size:1rem;">Usage</h2>
+    {% if user and user.quotas %}
+      <p style="margin:0;">Plan: <strong>{{ user.quotas.plan }}</strong></p>
+      <p style="margin:0;">Remaining renders: {{ user.quotas.remaining_allocation }}</p>
+    {% endif %}
+    <p style="margin:0;">Balance: {{ user.balance if user else '—' }}</p>
+    <p style="margin:0; color:rgba(226,232,240,0.75); font-size:0.9rem;">
+      Tasks publish to RabbitMQ with automatic retries. Subscribe to updates from the history tab for live monitoring.
+    </p>
+  </aside>
+</section>
+
+<section class="card" style="margin-top:2.5rem;" id="prompt-catalog" aria-labelledby="catalog-heading">
+  <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:center;">
+    <div>
+      <h2 id="catalog-heading" style="margin:0;">Prompt catalog</h2>
+      <p style="margin:0; color:rgba(226,232,240,0.75);">Click any suggestion to copy it into your prompt.</p>
+    </div>
+    <label class="visually-hidden" for="prompt-search">Search prompts</label>
+    <input id="prompt-search" type="search" placeholder="Search prompts" style="max-width:220px;" />
+  </div>
+  <div class="card-grid" style="margin-top:1.5rem;" data-prompt-grid>
+    {% for entry in prompt_catalog %}
+      <article class="card" style="padding:1.25rem; gap:0.6rem;" data-prompt-card data-label="{{ entry.title|lower }} {{ entry.category|lower }}">
+        <h3 style="margin:0;">{{ entry.title }}</h3>
+        <p style="margin:0; font-size:0.9rem; color:rgba(226,232,240,0.82);">{{ entry.prompt }}</p>
+        <button type="button" class="btn-primary" data-copy="{{ entry.prompt }}">Use prompt</button>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const searchInput = document.querySelector('#prompt-search');
+  const cards = document.querySelectorAll('[data-prompt-card]');
+  if (searchInput) {
+    searchInput.addEventListener('input', (event) => {
+      const term = event.target.value.toLowerCase();
+      cards.forEach((card) => {
+        const label = card.dataset.label || '';
+        card.style.display = label.includes(term) ? '' : 'none';
+      });
+    });
+  }
+
+  document.querySelectorAll('[data-copy]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const promptField = document.querySelector('#prompt');
+      if (!promptField) return;
+      promptField.value = button.dataset.copy;
+      promptField.focus();
+    });
+  });
+</script>
+{% endblock %}

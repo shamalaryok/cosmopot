@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Profile • DreamFoundry{% endblock %}
+
+{% block content %}
+<header style="margin-bottom:2rem; display:flex; flex-direction:column; gap:0.5rem;">
+  <h1 style="margin:0;">Profile overview</h1>
+  <p style="margin:0; color:rgba(226,232,240,0.78);">Manage account details, quotas, and contact settings.</p>
+</header>
+
+<section style="display:grid; gap:1.5rem; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));">
+  <article class="card" style="gap:0.6rem;">
+    <h2 style="margin:0; font-size:1rem;">Account</h2>
+    <p style="margin:0;">{{ user.email }}</p>
+    <p style="margin:0; font-size:0.9rem; color:rgba(226,232,240,0.75);">Member ID: {{ user.id }}</p>
+    {% if user.role %}
+      <span class="plan-badge">Role: {{ user.role|title }}</span>
+    {% endif %}
+  </article>
+
+  <article class="card" style="gap:0.6rem;">
+    <h2 style="margin:0; font-size:1rem;">Balance</h2>
+    <p style="margin:0; font-size:1.4rem; font-weight:700;">{{ user.balance }}</p>
+    {% if user.quotas %}
+      <p style="margin:0; font-size:0.9rem;">Plan: {{ user.quotas.plan }}</p>
+      <p style="margin:0; font-size:0.9rem;">Monthly allocation: {{ user.quotas.monthly_allocation }}</p>
+      <p style="margin:0; font-size:0.9rem;">Remaining: {{ user.quotas.remaining_allocation }}</p>
+      {% if user.quotas.requires_top_up %}
+        <span class="plan-badge">Top-up required</span>
+      {% endif %}
+    {% endif %}
+  </article>
+
+  {% if user.subscription %}
+    <article class="card" style="gap:0.6rem;">
+      <h2 style="margin:0; font-size:1rem;">Subscription</h2>
+      <p style="margin:0;">{{ user.subscription.name or user.subscription.level|title }}</p>
+      {% if user.subscription.current_period_end %}
+        <p style="margin:0; font-size:0.9rem;">Renews {{ user.subscription.current_period_end }}</p>
+      {% endif %}
+    </article>
+  {% endif %}
+</section>
+
+<section class="card" style="margin-top:2.5rem;" aria-labelledby="profile-form-title">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+    <div>
+      <h2 id="profile-form-title" style="margin:0;">Update profile</h2>
+      <p style="margin:0; color:rgba(226,232,240,0.75);">Only provide fields you want to change.</p>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('update_profile') }}" data-loading style="margin-top:1.5rem;">
+    {% set profile = user.profile if user.profile else {} %}
+    <div style="display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));">
+      <div>
+        <label for="first_name">First name</label>
+        <input id="first_name" name="first_name" type="text" value="{{ profile.first_name if profile }}" />
+      </div>
+      <div>
+        <label for="last_name">Last name</label>
+        <input id="last_name" name="last_name" type="text" value="{{ profile.last_name if profile }}" />
+      </div>
+      <div>
+        <label for="phone_number">Phone number</label>
+        <input id="phone_number" name="phone_number" type="tel" value="{{ profile.phone_number if profile }}" />
+      </div>
+      <div>
+        <label for="country">Country</label>
+        <input id="country" name="country" type="text" value="{{ profile.country if profile }}" />
+      </div>
+      <div>
+        <label for="city">City</label>
+        <input id="city" name="city" type="text" value="{{ profile.city if profile }}" />
+      </div>
+      <div>
+        <label for="telegram_id">Telegram handle</label>
+        <input id="telegram_id" name="telegram_id" type="text" value="{{ profile.telegram_id if profile }}" />
+      </div>
+    </div>
+    <button type="submit" class="btn-primary">Save changes</button>
+  </form>
+</section>
+{% endblock %}

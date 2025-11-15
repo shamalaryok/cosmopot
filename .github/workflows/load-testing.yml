@@ -1,0 +1,261 @@
+name: Load Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "compose"
+        type: choice
+        options:
+          - compose
+          - staging
+      users_max:
+        description: "Maximum concurrent users"
+        required: false
+        default: "1000"
+      duration:
+        description: "Test duration in seconds"
+        required: false
+        default: "300"
+      spawn_rate:
+        description: "User spawn rate per second"
+        required: false
+        default: "10"
+
+concurrency:
+  group: load-testing-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  load-test:
+    name: Load Test - ${{ matrix.api }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        api: [auth, generation, payments]
+      fail-fast: false
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: devstack
+          POSTGRES_USER: devstack
+          POSTGRES_PASSWORD: devstack
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r load_tests/requirements.txt
+          pip install -e .[dev]
+
+      - name: Set environment variables
+        run: |
+          echo "LOAD_TEST_HOST=${{ env.API_HOST }}" >> $GITHUB_ENV
+          echo "LOAD_TEST_USERS_MAX=${{ github.event.inputs.users_max || 1000 }}" >> $GITHUB_ENV
+          echo "LOAD_TEST_DURATION_SECONDS=${{ github.event.inputs.duration || 300 }}" >> $GITHUB_ENV
+          echo "LOAD_TEST_SPAWN_RATE=${{ github.event.inputs.spawn_rate || 10 }}" >> $GITHUB_ENV
+        env:
+          API_HOST: >-
+            ${{
+              github.event.inputs.environment == 'staging'
+              && 'https://staging.example.com'
+              || 'http://localhost:8000'
+            }}
+
+      - name: Start services (Compose)
+        if: github.event.inputs.environment == 'compose'
+        run: |
+          docker-compose up -d
+          echo "Waiting for services to be healthy..."
+          for i in {1..60}; do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              echo "✓ Services healthy"
+              exit 0
+            fi
+            echo "Waiting... ($i/60)"
+            sleep 5
+          done
+          echo "✗ Services failed to start"
+          docker-compose logs
+          exit 1
+
+      - name: Seed test data
+        if: github.event.inputs.environment == 'compose'
+        run: |
+          python3 -c "
+          import asyncio
+          from load_tests.data_seeder import seed_test_data
+          
+          db_url = 'postgresql://devstack:devstack@localhost:5432/devstack'
+          result = asyncio.run(seed_test_data(db_url, test_user_count=50))
+          print(f'Seeded test data: {result}')
+          "
+
+      - name: Run load tests
+        id: load-test
+        run: |
+          ./scripts/run_load_tests.sh \
+            --host "${{ env.LOAD_TEST_HOST }}" \
+            --users-max "${{ github.event.inputs.users_max || 1000 }}" \
+            --duration "${{ github.event.inputs.duration || 300 }}" \
+            --spawn-rate "${{ github.event.inputs.spawn_rate || 10 }}" \
+            --output ./load_test_reports
+        continue-on-error: true
+
+      - name: Parse results
+        id: parse-results
+        run: |
+          python3 << 'EOF'
+          import json
+          import csv
+          from pathlib import Path
+          
+          # Parse Locust CSV results
+          stats_file = Path("load_test_reports/load_test_stats.csv")
+          
+          if stats_file.exists():
+              print("Parsing test results...")
+              with open(stats_file) as f:
+                  reader = csv.DictReader(f)
+                  rows = list(reader)
+                  
+                  # Calculate overall metrics
+                  total_requests = sum(int(row.get('Requests', 0)) for row in rows)
+                  total_failures = sum(int(row.get('Failures', 0)) for row in rows)
+                  success_rate = ((total_requests - total_failures) / total_requests * 100) if total_requests > 0 else 0
+                  
+                  print(f"Total Requests: {total_requests}")
+                  print(f"Total Failures: {total_failures}")
+                  print(f"Success Rate: {success_rate:.2f}%")
+                  
+                  # Save results
+                  results = {
+                      "total_requests": total_requests,
+                      "total_failures": total_failures,
+                      "success_rate": success_rate,
+                      "status": "PASS" if success_rate >= 95 else "FAIL"
+                  }
+                  
+                  with open("load_test_reports/results.json", "w") as out:
+                      json.dump(results, out, indent=2)
+                  
+                  # Set GitHub output
+                  print(f"::set-output name=success_rate::{success_rate:.2f}")
+                  print(f"::set-output name=status::{results['status']}")
+          else:
+              print("Stats file not found, test may have failed")
+              print("::set-output name=status::FAIL")
+          EOF
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-reports-${{ matrix.api }}-${{ github.run_id }}
+          path: load_test_reports/
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const resultsPath = './load_test_reports/results.json';
+            
+            let comment = '## 📊 Load Testing Results\n\n';
+            
+            if (fs.existsSync(resultsPath)) {
+              const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+              comment += `
+            **API**: ${{ matrix.api }}
+            
+            | Metric | Value |
+            |--------|-------|
+            | Status | ${results.status} |
+            | Success Rate | ${results.success_rate.toFixed(2)}% |
+            | Total Requests | ${results.total_requests} |
+            | Failures | ${results.total_failures} |
+            `;
+            } else {
+              comment += '❌ Load test failed to execute\n';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Cleanup services
+        if: github.event.inputs.environment == 'compose' && always()
+        run: |
+          docker-compose down -v
+
+  validation:
+    name: Validate Results
+    runs-on: ubuntu-latest
+    needs: load-test
+    if: always()
+    steps:
+      - name: Check if all tests passed
+        run: |
+          if [ "${{ needs.load-test.result }}" == "success" ]; then
+            echo "✓ All load tests passed"
+            exit 0
+          else
+            echo "⚠ Some load tests had issues (check artifacts for details)"
+            exit 0
+          fi
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate summary
+        run: |
+          echo "# Load Testing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Execution" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Max Users**: ${{ github.event.inputs.users_max || 1000 }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duration**: ${{ github.event.inputs.duration || 300 }}s" >> $GITHUB_STEP_SUMMARY
+          echo "- **Spawn Rate**: ${{ github.event.inputs.spawn_rate || 10 }} users/sec" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Acceptance Criteria" >> $GITHUB_STEP_SUMMARY
+          echo "- Auth API: ≥ 99% success rate" >> $GITHUB_STEP_SUMMARY
+          echo "- Generation API: ≥ 95% success rate, P95 latency ≤ 500ms" >> $GITHUB_STEP_SUMMARY
+          echo "- Payments API: ≥ 95% success rate" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See artifacts for detailed reports" >> $GITHUB_STEP_SUMMARY

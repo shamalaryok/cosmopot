@@ -1,0 +1,343 @@
+version: "3.9"
+
+feat/compose-dev-stack-p0
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  env_file:
+    - .env.docker
+  networks:
+    - core
+
+services:
+  backend:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    volumes:
+      - ./backend/app:/srv/app/app:delegated
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      UVICORN_WORKERS: ${BACKEND_UVICORN_WORKERS:-4}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    volumes:
+      - ./backend/app:/srv/app/app:delegated
+    command:
+      - celery
+      - -A
+      - app.tasks
+      - worker
+      - --loglevel=info
+    depends_on:
+      backend:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      CELERY_WAIT_FOR_HOST: rabbitmq
+      CELERY_WAIT_FOR_PORT: "5672"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  frontend:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  nginx:
+   image: nginx:1.25-alpine
+   depends_on:
+     backend:
+       condition: service_healthy
+     frontend:
+       condition: service_healthy
+     grafana:
+       condition: service_started
+     prometheus:
+       condition: service_started
+   volumes:
+     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+     - ./nginx/certs:/etc/nginx/certs:ro
+   ports:
+     - "8080:80"
+     - "8443:443"
+   networks:
+     - core
+     - monitoring
+   deploy:
+     resources:
+       limits:
+         cpus: "0.25"
+         memory: 128M
+   healthcheck:
+     test: ["CMD-SHELL", "curl -f http://localhost/healthz || exit 1"]
+     interval: 30s
+     timeout: 5s
+     retries: 3
+     start_period: 15s
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - core
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - core
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - core
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2023-09-30T07-22-29Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - core
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: 512M
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - core
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:10.1.5
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  sentry-relay:
+    image: getsentry/relay:23.10.0
+    entrypoint: ["/etc/relay/run.sh"]
+    environment:
+      SENTRY_RELAY_UPSTREAM_URL: ${SENTRY_RELAY_UPSTREAM_URL}
+      SENTRY_RELAY_PORT: ${SENTRY_RELAY_PORT:-3000}
+    volumes:
+      - ./sentry/relay:/etc/relay:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/relay/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - core
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+  grafana_data:
+  prometheus_data:
+
+networks:
+  core:
+    driver: bridge
+  monitoring:
+    driver: bridge
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      DATABASE__HOST: db
+      DATABASE__PORT: "5432"
+      DATABASE__USER: postgres
+      DATABASE__PASSWORD: postgres
+      DATABASE__NAME: backend
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: backend
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+main
