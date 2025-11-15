@@ -1,0 +1,142 @@
+p0-user-models-migration-pydantic-repo-tests
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.env
+.venv
+venv/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Mypy cache
+.mypy_cache/
+
+# Pytest cache
+.pytest_cache/
+
+# Coverage reports
+htmlcov/
+.coverage*
+
+# Python
+__pycache__/
+*.py[cod]
+feat/compose-dev-stack-p0
+*.pyo
+*.pyd
+*.so
+.Python
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.env
+.venv/
+venv/
+ENV/
+env.bak/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Docker artifacts
+*.log
+**/__pycache__/
+
+# Compose
+.env.local
+.env.development
+.env.production
+
+# Coverage / test
+.coverage
+htmlcov/
+pytest_cache/
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+
+# Ignore local overrides but keep shared env templates
+!.env.example
+!.env.docker
+
+*$py.class
+
+# Virtual environments
+.venv/
+.env
+.env.*
+venv/
+
+# Tooling
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage-html/
+htmlcov/
+.dmypy.json
+
+# Packaging
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local data
+*.sqlite3
+*.log
+
+# Frontend SPA artifacts
+frontend/spa/node_modules/
+frontend/spa/dist/
+frontend/spa/.vite/
+frontend/spa/coverage/
+frontend/spa/playwright-report/
+frontend/spa/test-results/
+frontend/spa/tmp/
+
+# Frontend environment templates
+!frontend/spa/.env.example
+!frontend/spa/.env.development
+!frontend/spa/.env.production
+
+# Security: Self-signed certificates (development only)
+nginx/certs/
+# But keep the generation script
+!nginx/generate-certs.sh
+
+main
+main
+
+# Load testing artifacts
+load_test_reports/
+.env.load-testing.local
+*.csv
