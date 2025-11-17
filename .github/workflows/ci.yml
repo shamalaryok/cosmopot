@@ -125,7 +125,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload backend coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-backend
           path: |
@@ -185,7 +185,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload bot coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-bot
           path: |
@@ -352,7 +352,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload frontend coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-frontend
           path: frontend/spa/coverage/
