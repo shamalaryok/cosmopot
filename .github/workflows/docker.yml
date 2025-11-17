@@ -62,7 +62,7 @@ jobs:
 
       - name: Build and push Backend image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/backend/Dockerfile
@@ -78,7 +78,7 @@ jobs:
 
       - name: Export image for scanning
         if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/backend/Dockerfile
@@ -169,7 +169,7 @@ jobs:
       - name: Build and push Bot image
         id: build
         if: steps.check-dockerfile.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/bot/Dockerfile
@@ -185,7 +185,7 @@ jobs:
 
       - name: Export image for scanning
         if: github.event_name == 'pull_request' && steps.check-dockerfile.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/bot/Dockerfile
@@ -266,7 +266,7 @@ jobs:
 
       - name: Build and push Worker image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: worker/Dockerfile
@@ -282,7 +282,7 @@ jobs:
 
       - name: Export image for scanning
         if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: worker/Dockerfile
@@ -362,7 +362,7 @@ jobs:
 
       - name: Build and push Frontend image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: frontend/Dockerfile
@@ -378,7 +378,7 @@ jobs:
 
       - name: Export image for scanning
         if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: frontend/Dockerfile
