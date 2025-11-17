@@ -241,7 +241,7 @@ jobs:
           fi
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
 
       - name: Generate summary
         run: |
