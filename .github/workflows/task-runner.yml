@@ -139,7 +139,7 @@ jobs:
 
       - name: Upload backend coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: task-runner-backend-coverage
           path: |
@@ -149,7 +149,7 @@ jobs:
 
       - name: Upload bot coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: task-runner-bot-coverage
           path: |
@@ -159,7 +159,7 @@ jobs:
 
       - name: Upload frontend coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: task-runner-frontend-coverage
           path: frontend/spa/coverage/
